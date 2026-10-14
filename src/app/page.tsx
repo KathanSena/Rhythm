@@ -24,6 +24,7 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [selectedKey, setSelectedKey] = useState("");
   const [draft, setDraft] = useState("");
+  const [draftMode, setDraftMode] = useState<"template" | "ai" | "">("");
   const [draftError, setDraftError] = useState("");
   const [drafting, setDrafting] = useState(false);
   const [fileName, setFileName] = useState("");
@@ -69,12 +70,13 @@ export default function Home() {
   }, [analysis, selectedKey]);
 
   async function makeDraft(buyer: ShopperInsight) {
-    setDrafting(true); setDraft(""); setDraftError("");
+    setDrafting(true); setDraft(""); setDraftMode(""); setDraftError("");
     try {
       const response = await fetch("/api/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productName: buyer.productName, usualDays: buyer.usualDays, daysSinceLast: buyer.daysSinceLast, daysLate: buyer.lateDays }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not draft a message.");
       setDraft(data.draft);
+      setDraftMode(data.mode === "ai" ? "ai" : "template");
     } catch (e) { setDraftError(e instanceof Error ? e.message : "Could not reach LM Studio."); }
     finally { setDrafting(false); }
   }
@@ -93,7 +95,7 @@ export default function Home() {
         </nav>
         <div className="sidebar-bottom">
           <div className="privacy-card"><div><LockKeyhole size={16}/><b>Private by design</b></div><p>Sales files are analyzed in this browser. No customer list is uploaded to a cloud service.</p></div>
-          <div className="amd-chip"><span className="amd-glyph">A</span><span>Local AI, on your terms<small>LM Studio · OpenAI-compatible</small></span></div>
+          <div className="amd-chip"><span className="amd-glyph">R</span><span>Thoughtful outreach<small>AI assisted, evidence based</small></span></div>
           <button className="help-link" onClick={() => document.getElementById("method")?.scrollIntoView({behavior:"smooth"})}><CircleHelp size={16}/> How Rhythm works</button>
         </div>
       </aside>
@@ -129,17 +131,17 @@ export default function Home() {
                   <div className="profile-heading"><div className="profile-avatar">{alias(selected.customerKey).slice(-2)}</div><div><h2>{alias(selected.customerKey)}</h2><span className="profile-status"><span/> Review suggested</span></div></div>
                   <div className="reason-box"><div className="reason-head"><span className="reason-mark"><Activity size={15}/></span><b>Why Rhythm flagged them</b></div><p>They usually order every <strong>{selected.usualDays} days</strong>. It has been <strong>{selected.daysSinceLast} days</strong> since the last order—<strong>{selected.lateDays} days beyond</strong> their personal threshold.</p><div className="rhythm-scale"><div className="scale-labels"><span>Usual: {selected.usualDays}d</span><span>Now: {selected.daysSinceLast}d</span></div><div className="scale-track"><div className="scale-fill" style={{width:Math.min(100,Math.max(14,(selected.daysSinceLast/Math.max(selected.thresholdDays*2,1))*100))+"%"}}/><span className="threshold-tick" style={{left:Math.min(92,(selected.thresholdDays/Math.max(selected.thresholdDays*2,1))*100)+"%"}}/></div><div className="scale-caption">Personal threshold: {selected.thresholdDays} days</div></div></div>
                   <div className="repeat-item"><div className="repeat-item-icon"><ShoppingBag size={17}/></div><div><span className="mini-label">MOST REPEATED ITEM</span><b>{selected.productName}</b><small>Appeared in {selected.repeatCount} separate order days</small></div></div>
-                  <div className="draft-section"><div className="draft-title"><div><Sparkles size={16}/><b>Thoughtful next step</b></div><span>GEMMA · LOCAL</span></div><p>Draft a low-pressure reorder reminder from the purchase evidence. No discount is assumed.</p>
-                    {draft ? <div className="draft-result"><div className="draft-result-head"><Check size={14}/> Draft ready <button onClick={() => setDraft("")} aria-label="Clear draft"><X size={14}/></button></div><p>{draft}</p><small>Review and personalize before sending. Rhythm never sends messages.</small></div> : <button className="button ai-button" disabled={drafting} onClick={() => void makeDraft(selected)}>{drafting?<LoaderCircle size={16} className="spin"/>:<Sparkles size={16}/>} {drafting?"Asking local model…":"Draft a follow-up"}<ArrowUpRight size={15}/></button>}
+                  <div className="draft-section"><div className="draft-title"><div><Sparkles size={16}/><b>Thoughtful next step</b></div><span>{draftMode === "ai" ? "AI-GENERATED" : draftMode === "template" ? "RULE-BASED · NO AI" : "EVIDENCE-BASED"}</span></div><p>Draft a low-pressure reorder reminder from the purchase evidence. No discount is assumed.</p>
+                    {draft ? <div className="draft-result"><div className="draft-result-head"><Check size={14}/> Draft ready <button onClick={() => {setDraft("");setDraftMode("");}} aria-label="Clear draft"><X size={14}/></button></div><p>{draft}</p><small>Review and personalize before sending. Rhythm never sends messages.</small></div> : <button className="button ai-button" disabled={drafting} onClick={() => void makeDraft(selected)}>{drafting?<LoaderCircle size={16} className="spin"/>:<Sparkles size={16}/>} {drafting?"Preparing your draft…":"Draft a follow-up"}<ArrowUpRight size={15}/></button>}
                     {draftError && <div className="ai-error">{draftError}</div>}
-                    <div className="local-note"><LockKeyhole size={13}/> Only the item name and timing evidence go to your local LM Studio endpoint.</div>
+                    <div className="local-note"><LockKeyhole size={13}/> The draft uses only the item name and timing evidence—no customer ID or contact details. If an AI model is unavailable, Rhythm creates a clearly labeled rule-based draft.</div>
                   </div>
                 </> : <div className="no-risk"><Check size={24}/><b>No overdue repeat shoppers</b><p>Try another snapshot date or load a dataset with more repeat purchases.</p></div>}
               </aside>
             </section>
             <section className="pilot-row" id="pilot-plan"><div className="pilot-icon"><MessageSquareText size={18}/></div><div className="pilot-copy"><span className="section-kicker">MAKE THE NEXT STEP MEASURABLE</span><h2>Test a thoughtful nudge, not a blanket discount.</h2><p>For a real campaign, hold back a random control group. Compare 30-day repeat purchases and gross margin between contacted and holdout customers before claiming impact.</p></div><div className="pilot-metric"><b>30 days</b><span>suggested review window</span></div><div className="pilot-link"><span>Not a revenue-lift claim</span><Info size={15}/></div></section>
             <section className="method-row" id="method"><div className="method-main"><span className="section-kicker">TRANSPARENT RHYTHM RULE</span><h2>A personal clock, not a generic churn score.</h2><p>We use each shopper’s own history to estimate when their usual routine has shifted. Four purchase days are required before a shopper can be assessed.</p><div className="formula"><span>Flag for review when</span><b>days since last order &gt; max(14, 1.6 × personal median gap)</b></div><small>This is a review signal, not a churn prediction. It does not infer why the customer is late.</small></div><div className="method-side"><div className="method-stat"><b>{analysis.totalOrders.toLocaleString()}</b><span>orders included</span></div><div className="method-stat"><b>{analysis.totalRows.toLocaleString()}</b><span>line items analyzed</span></div><div className="method-stat"><b>{shortDate(analysis.minDate)} – {shortDate(analysis.maxDate)}</b><span>data coverage</span></div></div></section>
-            <section className="privacy-footer" id="privacy"><div><ShieldCheck size={17}/><b>Privacy stays part of the product</b></div><p>CSV analysis stays in browser memory and is cleared when the page closes. Customer identifiers are masked in the interface. The message draft request contains no customer ID or contact details and is sent only to the configured local model endpoint.</p><span>Public sample: UCI Machine Learning Repository · Online Retail · CC BY 4.0 · Chen (2015)</span></section>
+            <section className="privacy-footer" id="privacy"><div><ShieldCheck size={17}/><b>Privacy stays part of the product</b></div><p>CSV analysis stays in browser memory and is cleared when the page closes. Customer identifiers are masked in the interface. A draft request contains only the item name and purchase timing—never customer IDs or contact details. When an AI model is configured, that evidence is forwarded to the model; otherwise a rule-based draft is generated.</p><span>Public sample: UCI Machine Learning Repository · Online Retail · CC BY 4.0 · Chen (2015)</span></section>
           </> : <div className="empty-state"><div className="empty-graphic"><FileUp size={28}/></div><h2>Bring in transaction history.</h2><p>Upload a sales CSV with order, customer, product, quantity, date and unit-price columns. Or restore the real public research dataset.</p><button className="button primary" onClick={() => void loadSample()}><ArrowDownToLine size={16}/> Load UCI research dataset</button></div>}
           <footer className="app-footer"><span>RHYTHM · RETENTION, IN TIME</span><span>Historical data is not live performance. Recommendations need a human review.</span></footer>
         </div>

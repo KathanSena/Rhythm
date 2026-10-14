@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
+function templateDraft(productName: string, usualDays: number, daysSinceLast: number) {
+  return `It may be a good time to reorder ${productName}. You usually reorder about every ${usualDays} days, and it has been ${daysSinceLast} days since your last order. If you do not need it right now, feel free to ignore this reminder.`;
+}
+
 export async function POST(request: Request) {
   const base = process.env.OPENAI_BASE_URL?.replace(/\/+$/, "");
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL;
-  if (!base || !apiKey || !model || model.includes("the-model-id-from")) {
-    return NextResponse.json({ error: "Local AI is not configured yet. Start LM Studio's server and add its model ID to .env.local." }, { status: 503 });
-  }
   let input: { productName?: unknown; usualDays?: unknown; daysSinceLast?: unknown; daysLate?: unknown };
   try { input = await request.json(); } catch { return NextResponse.json({ error: "Request body was not valid JSON." }, { status: 400 }); }
   const productName = typeof input.productName === "string" ? input.productName.slice(0, 140) : "a previously purchased item";
@@ -16,6 +17,9 @@ export async function POST(request: Request) {
   const daysSinceLast = Number(input.daysSinceLast);
   const daysLate = Number(input.daysLate);
   if (![usualDays, daysSinceLast, daysLate].every(Number.isFinite)) return NextResponse.json({ error: "Missing purchase-timing evidence." }, { status: 400 });
+  if (!base || !apiKey || !model || model.includes("the-model-id-from")) {
+    return NextResponse.json({ draft: templateDraft(productName, usualDays, daysSinceLast), model: "Rhythm template", mode: "template" });
+  }
   try {
     const response = await fetch(base + "/chat/completions", {
       method: "POST",
@@ -38,7 +42,7 @@ export async function POST(request: Request) {
     const content = payload?.choices?.[0]?.message?.content;
     const draft = typeof content === "string" ? content.trim() : Array.isArray(content) ? content.map((part: { text?: string }) => part?.text || "").join("").trim() : "";
     if (!draft) return NextResponse.json({ error: "The model did not return a draft. Try again or choose a different model." }, { status: 502 });
-    return NextResponse.json({ draft, model });
+    return NextResponse.json({ draft, model, mode: "ai" });
   } catch {
     return NextResponse.json({ error: "Could not reach the local model. Check that LM Studio's server is listening at the address in .env.local." }, { status: 502 });
   }
