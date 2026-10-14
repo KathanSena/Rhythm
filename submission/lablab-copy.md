@@ -32,7 +32,7 @@ https://github.com/KathanSena/Rhythm
 
 ## Technology tags
 
-AMD Radeon hardware (local inference demo; confirm GPU offload before submission), Gemma 4 E4B, LM Studio, Next.js, React, TypeScript, customer retention, browser-side CSV analytics.
+AMD Radeon RX 9070 XT (verified Vulkan GPU inference), Gemma 4 E4B, LM Studio, Next.js, React, TypeScript, customer retention, browser-side CSV analytics.
 
 ## Intended user
 
