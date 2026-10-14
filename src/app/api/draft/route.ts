@@ -23,9 +23,11 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         model,
         temperature: 0.35,
-        max_tokens: 180,
+        // Gemma 4 can spend tokens in its separate reasoning channel before
+        // producing the short customer-facing draft. Leave enough room for both.
+        max_tokens: 512,
         messages: [
-          { role: "system", content: "Write a short, respectful, no-pressure customer follow-up for an independent retailer. Only use the evidence given. Do not invent a discount, product availability, personal details, urgency, or claims about why the person has not ordered. Do not use a name. Output only the draft message, with no quotation marks or analysis. Invite the customer to ignore it if it is not useful." },
+          { role: "system", content: "Write a concise, respectful, no-pressure reorder reminder in at most 40 words. Use only the facts provided. Do not invent discounts, availability, personal details, urgency, or a reason for the delay. Do not use a name. Invite the customer to ignore it if it is not useful." },
           { role: "user", content: JSON.stringify({ itemPreviouslyRepeated: productName, typicalRepeatIntervalDays: usualDays, daysSinceLastOrder: daysSinceLast, daysBeyondPersonalThreshold: daysLate }) },
         ],
       }),
