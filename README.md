@@ -40,6 +40,8 @@ Only the previously purchased item label and interval figures are sent to the co
 
 Upload CSV from the button in the app. Required headers are order/invoice ID, customer ID, product/SKU, quantity, date, and unit price. Common headers such as InvoiceNo, CustomerID, StockCode, Quantity, InvoiceDate, and UnitPrice are recognized. Return/cancellation rows and incomplete, zero, or negative transactions are skipped. Files are read in browser memory and are not uploaded by the app.
 
+For a smaller upload example, use [`submission/rhythm-small-demo.csv`](submission/rhythm-small-demo.csv). It is a subset of the same real, pseudonymized UCI transaction extract. Its expected results are documented in [`submission/demo-csv-info.md`](submission/demo-csv-info.md).
+
 ## Data source and attribution
 
 Sample: **Online Retail**, UCI Machine Learning Repository, donated by Daqing Chen (2015), DOI [10.24432/C5BW33](https://doi.org/10.24432/C5BW33), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Dataset page: [UCI Online Retail](https://archive.ics.uci.edu/dataset/352/online%2Bretail).
