@@ -22,6 +22,14 @@ The included research sample is an attributed, anonymized extract of the UCI Onl
 
 Track 3 — Reinvent Commerce
 
+## Application URL
+
+https://rhythm-eta-six.vercel.app
+
+## Public source code
+
+https://github.com/KathanSena/Rhythm
+
 ## Technology tags
 
 AMD Radeon hardware (local inference demo; confirm GPU offload before submission), Gemma 4 E4B, LM Studio, Next.js, React, TypeScript, customer retention, browser-side CSV analytics.

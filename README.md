@@ -2,6 +2,8 @@
 
 **Retention, in time.** Rhythm helps small retailers notice when a repeat shopper has gone longer than their own historical buying pattern, inspect the evidence, and choose a considerate next action.
 
+**Live application:** https://rhythm-eta-six.vercel.app
+
 ## What it does
 
 - Analyzes an included, cited extract of real historical retail transactions or a merchant CSV export.
