@@ -11,7 +11,8 @@
 - Flags a shopper for human review after max(14 days, 1.6 × personal median gap), requiring at least four purchase days.
 - Shows the repeated item and the supporting timeline, with masked identifiers.
 - Optionally drafts a low-pressure reorder reminder using a model served locally by LM Studio. The statistical rule makes the flag; the language model only drafts text. Rhythm never sends messages.
-- Provides a pilot measurement plan: compare a randomized holdout with contacted customers on repeat purchase and gross margin before claiming impact.
+- Builds a randomized follow-up/holdout plan, balanced within repeated-item groups, and exports a merchant handoff CSV for human review. No messages are sent.
+- Provides a measurable pilot design: compare 30-day repeat purchase between randomized groups after the campaign. Rhythm reports no predicted campaign lift.
 
 The sample's 30-day return rate is historical behavior after a selected date. It is not a campaign effect or a forecast of uplift.
 
@@ -28,13 +29,13 @@ Open http://localhost:3000.
 
 The app can be deployed to Vercel from the public GitHub repository. The included transaction analysis runs in the visitor's browser and needs no database.
 
-The optional Gemma drafting route is configured by server environment variables. The local .env.local endpoint (127.0.0.1:1234) is only for a local demo; it will not reach your computer from a hosted deployment. To enable drafts on a hosted deployment, set OPENAI_BASE_URL, OPENAI_API_KEY, and OPENAI_MODEL in the hosting provider to a reachable, secured OpenAI-compatible model endpoint. Never put endpoint credentials in client-side code or commit them. If no hosted model endpoint is set, the core analysis still works and drafting reports that it is not configured.
+The optional Gemma drafting route is configured by server environment variables. The local .env.local endpoint (127.0.0.1:1234) is only for a local demo; it will not reach your computer from a hosted deployment. To enable AI drafts on a hosted deployment, set OPENAI_BASE_URL, OPENAI_API_KEY, and OPENAI_MODEL in the hosting provider to a reachable, secured OpenAI-compatible model endpoint. Never put endpoint credentials in client-side code or commit them. If no hosted model endpoint is set, the site creates a clearly labeled rule-based template instead of claiming an AI draft.
 
 ### Optional local Gemma draft
 
 In LM Studio, load your downloaded Gemma model, start the local server (OpenAI-compatible API, normally port 1234), and copy .env.example to .env.local. Set OPENAI_MODEL to the exact model identifier shown by LM Studio. The sample API key value is a local placeholder; LM Studio commonly does not require a real key. Restart pnpm dev after editing .env.local.
 
-Only the previously purchased item label and interval figures are sent to the configured model endpoint. No customer identifier or contact details are sent. If the endpoint is unavailable, the analysis and other screens continue to work.
+Only the previously purchased item label and interval figures are sent to the configured model endpoint. No customer identifier or contact details are sent. The randomized pilot export is generated in the browser and includes the original customer reference from the uploaded file; download it only when needed and keep it secure. The bundled research sample uses pseudonymous IDs and is historical, not a contact list.
 
 ## Merchant CSV
 

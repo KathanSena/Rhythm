@@ -21,6 +21,10 @@ Now I can ask Gemma, served locally through LM Studio with Vulkan acceleration o
 
 The historical return rate is not proof that a message works. For a real campaign, we would hold out a randomized group and compare 30-day repeat purchases and gross margin. That is how Rhythm turns a signal into a measurable, responsible retention test.”
 
+## Optional stronger product-action shot
+
+After the draft, scroll to the pilot planner. Choose a holdout share, create the randomized assignment plan, and show the follow-up and holdout counts. You can download the CSV, but say that the bundled sample contains pseudonymous historical references and is not a contact list. Do not present the random groups as campaign results: the planner prepares a real merchant test; it does not predict or claim lift.
+
 ## Closing line
 
 “Rhythm helps a retailer notice when a customer’s own pattern changes, then act with evidence instead of a blanket discount.”

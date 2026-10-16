@@ -1,11 +1,14 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
-import { Activity, ArrowDownToLine, ArrowUpRight, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, FileUp, Gauge, HeartHandshake, Info, LoaderCircle, LockKeyhole, Menu, MessageSquareText, Search, ShieldCheck, ShoppingBag, Sparkles, Upload, Users, X } from "lucide-react";
+import { Activity, ArrowDownToLine, ArrowUpRight, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, Download, FileUp, Gauge, HeartHandshake, Info, LoaderCircle, LockKeyhole, Menu, MessageSquareText, Search, ShieldCheck, ShoppingBag, Sparkles, Upload, Users, X } from "lucide-react";
 import { Analysis, SaleRow, ShopperInsight, analyzeSales, money, parseSalesCsv, shortDate } from "@/lib/analysis";
 
 const SAMPLE_PATH = "/uci-online-retail.csv";
 const MAX_UPLOAD_BYTES = 30 * 1024 * 1024;
+
+type PilotAssignment = { buyer: ShopperInsight; group: "contact" | "holdout" };
+type PilotPlan = { asOf: string; assignments: PilotAssignment[] };
 
 function alias(key: string) {
   let hash = 2166136261;
@@ -27,6 +30,8 @@ export default function Home() {
   const [draftMode, setDraftMode] = useState<"template" | "ai" | "">("");
   const [draftError, setDraftError] = useState("");
   const [drafting, setDrafting] = useState(false);
+  const [holdoutPercent, setHoldoutPercent] = useState(20);
+  const [pilotPlan, setPilotPlan] = useState<PilotPlan | null>(null);
   const [fileName, setFileName] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeNav, setActiveNav] = useState("Overview");
@@ -34,7 +39,7 @@ export default function Home() {
   useEffect(() => { void loadSample(); }, []);
 
   async function loadSample() {
-    setLoading(true); setError(""); setWarning(""); setAsOfInput(""); setSearch(""); setSelectedKey(""); setDraft("");
+    setLoading(true); setError(""); setWarning(""); setAsOfInput(""); setSearch(""); setSelectedKey(""); setDraft(""); setDraftMode(""); setPilotPlan(null);
     try {
       const response = await fetch(SAMPLE_PATH, { cache: "no-store" });
       if (!response.ok) throw new Error("Public transaction sample could not be loaded.");
@@ -50,7 +55,7 @@ export default function Home() {
     if (!file) return;
     if (file.size > MAX_UPLOAD_BYTES) { setError("This file is over 30 MB. Export a smaller date range from your sales system and try again."); return; }
     if (!file.name.toLowerCase().endsWith(".csv")) { setError("Upload a CSV export. Excel workbooks need to be saved as CSV first."); return; }
-    setLoading(true); setError(""); setWarning(""); setDraft(""); setAsOfInput(""); setSelectedKey("");
+    setLoading(true); setError(""); setWarning(""); setDraft(""); setDraftMode(""); setPilotPlan(null); setAsOfInput(""); setSelectedKey("");
     try {
       const parsed = parseSalesCsv(await file.text());
       setRows(parsed.rows); setSource("Your CSV · processed in this browser"); setFileName(file.name); setIsSample(false); setWarning(parsed.warnings.join(" "));
@@ -81,6 +86,41 @@ export default function Home() {
     finally { setDrafting(false); }
   }
 
+  function createPilotPlan(buyers: ShopperInsight[], asOf: string) {
+    const groups = new Map<string, ShopperInsight[]>();
+    for (const buyer of buyers) groups.set(buyer.productId, [...(groups.get(buyer.productId) || []), buyer]);
+    const assignments: PilotAssignment[] = [];
+    for (const group of groups.values()) {
+      const shuffled = group.slice();
+      for (let i = shuffled.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      const holdoutCount = shuffled.length > 1 ? Math.min(shuffled.length - 1, Math.max(1, Math.round(shuffled.length * holdoutPercent / 100))) : 0;
+      shuffled.forEach((buyer, index) => assignments.push({ buyer, group: index < holdoutCount ? "holdout" : "contact" }));
+    }
+    setPilotPlan({ asOf, assignments });
+  }
+
+  function downloadPilotPlan(plan: PilotPlan) {
+    const cell = (value: string | number) => {
+      let safe = String(value);
+      if (/^\s*[=+@-]/.test(safe)) safe = "'" + safe;
+      return '"' + safe.replace(/"/g, '""') + '"';
+    };
+    const lines = [
+      ["customer_reference", "test_group", "repeat_item", "snapshot_date", "last_order_date", "usual_interval_days", "days_since_last_order", "days_beyond_threshold"],
+      ...plan.assignments.map(({ buyer, group }) => [buyer.customerKey, group, buyer.productName, plan.asOf, buyer.lastOrder, buyer.usualDays, buyer.daysSinceLast, buyer.lateDays]),
+    ].map((line) => line.map(cell).join(","));
+    const blob = new Blob([String.fromCharCode(0xfeff) + lines.join(String.fromCharCode(13, 10))], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `rhythm-pilot-plan-${plan.asOf}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   const dataReady = Boolean(analysis && rows.length);
   const selectedPosition = selected ? analysis?.overdue.findIndex((buyer) => buyer.customerKey === selected.customerKey) ?? -1 : -1;
 
@@ -108,7 +148,7 @@ export default function Home() {
           {error && <div className="alert error-alert"><Info size={17}/><span>{error}</span><button onClick={() => setError("")} aria-label="Dismiss"><X size={16}/></button></div>}
           {warning && <div className="alert warning-alert"><Info size={17}/><span>{warning}</span><button onClick={() => setWarning("")} aria-label="Dismiss"><X size={16}/></button></div>}
           {loading ? <div className="loading-panel"><LoaderCircle className="spin" size={24}/><span>Reading sales records locally…</span></div> : dataReady && analysis ? <>
-            <section className="snapshot-row"><div><span className="section-kicker">REPORTING DATE</span><p>Historical snapshot used for these customer metrics.</p></div><label className="date-select"><CalendarDays size={16}/><input type="date" value={asOfInput || analysis.asOf} min={analysis.minDate} max={analysis.maxDate} onChange={(e) => setAsOfInput(e.target.value)}/><ChevronDown size={14}/></label></section>
+            <section className="snapshot-row"><div><span className="section-kicker">REPORTING DATE</span><p>Historical snapshot used for these customer metrics.</p></div><label className="date-select"><CalendarDays size={16}/><input type="date" value={asOfInput || analysis.asOf} min={analysis.minDate} max={analysis.maxDate} onChange={(e) => {setPilotPlan(null);setAsOfInput(e.target.value);}}/><ChevronDown size={14}/></label></section>
             <section className="metric-grid">
               <Metric icon={<Users size={17}/>} label="Repeat shoppers" value={analysis.eligibleShoppers.toLocaleString()} note="4+ distinct purchase days before snapshot" tone="violet"/>
               <Metric icon={<Clock3 size={17}/>} label="Out of their rhythm" value={analysis.overdue.length.toLocaleString()} note="Beyond personal repeat threshold" tone="orange"/>
@@ -139,7 +179,7 @@ export default function Home() {
                 </> : <div className="no-risk"><Check size={24}/><b>No overdue repeat shoppers</b><p>Try another snapshot date or load a dataset with more repeat purchases.</p></div>}
               </aside>
             </section>
-            <section className="pilot-row" id="pilot-plan"><div className="pilot-icon"><MessageSquareText size={18}/></div><div className="pilot-copy"><span className="section-kicker">MAKE THE NEXT STEP MEASURABLE</span><h2>Test a thoughtful nudge, not a blanket discount.</h2><p>For a real campaign, hold back a random control group. Compare 30-day repeat purchases and gross margin between contacted and holdout customers before claiming impact.</p></div><div className="pilot-metric"><b>30 days</b><span>suggested review window</span></div><div className="pilot-link"><span>Not a revenue-lift claim</span><Info size={15}/></div></section>
+            <section className="pilot-row" id="pilot-plan"><div className="pilot-icon"><MessageSquareText size={18}/></div><div className="pilot-copy"><span className="section-kicker">MAKE THE NEXT STEP MEASURABLE</span><h2>Run a fair retention test, not a blanket discount.</h2><p>Randomly split shoppers within each repeated item into a follow-up group and a holdout group. Review 30-day repeat purchases after the test; this plan predicts no lift.</p></div><div className="pilot-actions"><label>Holdout <select value={holdoutPercent} onChange={(event) => setHoldoutPercent(Number(event.target.value))}><option value={10}>10%</option><option value={20}>20%</option><option value={30}>30%</option></select></label><button className="button secondary" onClick={() => createPilotPlan(analysis.overdue, analysis.asOf)} disabled={analysis.overdue.length < 2}>Create randomized plan</button></div>{pilotPlan?.asOf === analysis.asOf && <div className="pilot-plan-result"><div><b>{pilotPlan.assignments.filter((item) => item.group === "contact").length}</b><span>follow-up group</span></div><div><b>{pilotPlan.assignments.filter((item) => item.group === "holdout").length}</b><span>holdout group</span></div><button className="button primary" onClick={() => downloadPilotPlan(pilotPlan)}><Download size={14}/> Download plan CSV</button><p>The export contains customer references from the uploaded file. Keep it secure. The bundled research sample uses pseudonymous IDs and is historical, not a contact list.</p></div>}</section>
             <section className="method-row" id="method"><div className="method-main"><span className="section-kicker">TRANSPARENT RHYTHM RULE</span><h2>A personal clock, not a generic churn score.</h2><p>We use each shopper’s own history to estimate when their usual routine has shifted. Four purchase days are required before a shopper can be assessed.</p><div className="formula"><span>Flag for review when</span><b>days since last order &gt; max(14, 1.6 × personal median gap)</b></div><small>This is a review signal, not a churn prediction. It does not infer why the customer is late.</small></div><div className="method-side"><div className="method-stat"><b>{analysis.totalOrders.toLocaleString()}</b><span>orders included</span></div><div className="method-stat"><b>{analysis.totalRows.toLocaleString()}</b><span>line items analyzed</span></div><div className="method-stat"><b>{shortDate(analysis.minDate)} – {shortDate(analysis.maxDate)}</b><span>data coverage</span></div></div></section>
             <section className="privacy-footer" id="privacy"><div><ShieldCheck size={17}/><b>Privacy stays part of the product</b></div><p>CSV analysis stays in browser memory and is cleared when the page closes. Customer identifiers are masked in the interface. A draft request contains only the item name and purchase timing—never customer IDs or contact details. When an AI model is configured, that evidence is forwarded to the model; otherwise a rule-based draft is generated.</p><span>Public sample: UCI Machine Learning Repository · Online Retail · CC BY 4.0 · Chen (2015)</span></section>
           </> : <div className="empty-state"><div className="empty-graphic"><FileUp size={28}/></div><h2>Bring in transaction history.</h2><p>Upload a sales CSV with order, customer, product, quantity, date and unit-price columns. Or restore the real public research dataset.</p><button className="button primary" onClick={() => void loadSample()}><ArrowDownToLine size={16}/> Load UCI research dataset</button></div>}

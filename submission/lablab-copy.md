@@ -12,7 +12,7 @@ Rhythm helps small retailers spot repeat shoppers who have drifted from their ow
 
 Small retailers often have transaction history but no simple way to tell when a repeat customer’s routine has changed. Generic churn windows can overlook the fact that one shopper returns weekly while another returns every few months.
 
-Rhythm analyzes transaction CSVs in the browser and compares each repeat shopper’s latest purchase date with their own historical cadence. It requires at least four distinct purchase days and flags a shopper for human review when days since last order exceed max(14 days, 1.6 × that shopper’s median gap between purchase days). The attention list shows the personal cadence, last order, repeated item, and days beyond the threshold.
+Rhythm analyzes transaction CSVs in the browser and compares each repeat shopper’s latest purchase date with their own historical cadence. It requires at least four distinct purchase days and flags a shopper for human review when days since last order exceed max(14 days, 1.6 × that shopper’s median gap between purchase days). The attention list shows the personal cadence, last order, repeated item, and days beyond the threshold. A merchant can create a randomized follow-up/holdout plan, balanced within repeated-item groups, and export the assignment list for a human-reviewed campaign. After the campaign, the merchant should compare 30-day repeat purchases across the groups; Rhythm does not claim or predict campaign lift.
 
 For a possible next step, Rhythm can ask Gemma through a local LM Studio endpoint to draft a low-pressure reorder reminder. The model only writes the draft; it does not decide who is flagged, invent discounts, or send messages. The merchant reviews every suggestion.
 
@@ -40,7 +40,7 @@ An independent retailer or retention marketer reviewing repeat purchase behavior
 
 ## Business value and measurement
 
-The useful action is an evidence-backed customer review and optional message draft. The product does not yet show intervention results. Measure a future campaign using a randomized holdout, 30-day repeat purchase rate, and gross margin.
+The useful action is an evidence-backed review, an optional message draft, and an exported randomized campaign plan. The product does not show intervention results. Measure a real campaign using the randomized holdout and 30-day repeat purchase rate; gross margin requires the merchant’s cost data and is not inferred from this sales CSV.
 
 ## Data and caveat
 
