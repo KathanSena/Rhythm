@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 function templateDraft(productName: string, usualDays: number, daysSinceLast: number) {
-  return `It may be a good time to reorder ${productName}. You usually reorder about every ${usualDays} days, and it has been ${daysSinceLast} days since your last order. If you do not need it right now, feel free to ignore this reminder.`;
+  return `It may be a good time to reorder ${productName}. You usually reorder about every ${usualDays} days, and it has been ${daysSinceLast} days since your last order. Feel free to revisit this reminder whenever it suits you.`;
 }
 
 function reviewDraft(draft: string, allowedNumbers: number[]) {
@@ -11,9 +11,9 @@ function reviewDraft(draft: string, allowedNumbers: number[]) {
   const words = draft.trim().split(/\s+/).filter(Boolean);
   if (words.length > 40) reasons.push("over the 40-word limit");
   const numbers = draft.match(/\b\d+(?:[,.]\d+)?%?\b/g) || [];
-  if (numbers.some((value) => !allowedNumbers.includes(Number(value.replace(/,/g, "").replace("%", ""))))) reasons.push("contains a number not present in the purchase evidence");
+  if (numbers.some((value) => !allowedNumbers.includes(Number(value.replace(/,/g, "").replace("%", ""))))) reasons.push("includes a number outside the purchase evidence");
   if (/\b(?:discount|offer|sale|deal|free shipping|limited time|last chance|urgent|hurry|expires?|guarantee|save)\b|[£$€]/i.test(draft)) reasons.push("contains an unsupported promotion, price, or urgency claim");
-  if (/\b(?:dear|hi|hello)\b/i.test(draft)) reasons.push("contains a greeting even though no customer name was provided");
+  if (/\b(?:dear|hi|hello)\b/i.test(draft)) reasons.push("uses a greeting without a customer name in the purchase evidence");
   return { passed: reasons.length === 0, reasons };
 }
 
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL;
   let input: { productName?: unknown; usualDays?: unknown; daysSinceLast?: unknown; daysLate?: unknown };
-  try { input = await request.json(); } catch { return NextResponse.json({ error: "Request body was not valid JSON." }, { status: 400 }); }
+  try { input = await request.json(); } catch { return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 }); }
   const productName = typeof input.productName === "string" ? input.productName.slice(0, 140) : "a previously purchased item";
   const usualDays = Number(input.usualDays);
   const daysSinceLast = Number(input.daysSinceLast);
@@ -52,11 +52,11 @@ export async function POST(request: Request) {
     if (!response.ok) return NextResponse.json({ error: "LM Studio returned an error. Make sure the model is loaded and the local server is running." }, { status: 502 });
     const content = payload?.choices?.[0]?.message?.content;
     const draft = typeof content === "string" ? content.trim() : Array.isArray(content) ? content.map((part: { text?: string }) => part?.text || "").join("").trim() : "";
-    if (!draft) return NextResponse.json({ error: "The model did not return a draft. Try again or choose a different model." }, { status: 502 });
+    if (!draft) return NextResponse.json({ error: "The model returned an empty draft. Try again or choose a different model." }, { status: 502 });
     const review = reviewDraft(draft, [usualDays, daysSinceLast, daysLate]);
     if (!review.passed) return NextResponse.json({ draft: templateDraft(productName, usualDays, daysSinceLast), model: "Rhythm template", mode: "verified_template", review: { status: "replaced", reasons: review.reasons } });
     return NextResponse.json({ draft, model, mode: "ai", review: { status: "passed", reasons: [] } });
   } catch {
-    return NextResponse.json({ error: "Could not reach the local model. Check that LM Studio's server is listening at the address in .env.local." }, { status: 502 });
+    return NextResponse.json({ error: "Check that LM Studio is running and the model is loaded." }, { status: 502 });
   }
 }
