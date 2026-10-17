@@ -1,14 +1,13 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
-import { Activity, ArrowDownToLine, ArrowUpRight, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, Download, FileUp, Gauge, HeartHandshake, Info, LoaderCircle, LockKeyhole, Menu, MessageSquareText, Search, ShieldCheck, ShoppingBag, Sparkles, Upload, Users, X } from "lucide-react";
+import { Activity, ArrowDownToLine, ArrowUpRight, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, FileUp, Gauge, HeartHandshake, Info, LoaderCircle, LockKeyhole, Menu, Search, ShieldCheck, ShoppingBag, Sparkles, Upload, Users, X } from "lucide-react";
 import { Analysis, SaleRow, ShopperInsight, analyzeSales, money, parseSalesCsv, shortDate } from "@/lib/analysis";
 
 const SAMPLE_PATH = "/uci-online-retail.csv";
 const MAX_UPLOAD_BYTES = 30 * 1024 * 1024;
 
-type PilotAssignment = { buyer: ShopperInsight; group: "contact" | "holdout" };
-type PilotPlan = { asOf: string; assignments: PilotAssignment[] };
+type WatchlistItem = { productId: string; productName: string; shopperCount: number; typicalDays: number; medianLateDays: number };
 
 function alias(key: string) {
   let hash = 2166136261;
@@ -31,8 +30,6 @@ export default function Home() {
   const [draftReview, setDraftReview] = useState<{ status: "passed" | "replaced" | "rules"; reasons: string[] } | null>(null);
   const [draftError, setDraftError] = useState("");
   const [drafting, setDrafting] = useState(false);
-  const [holdoutPercent, setHoldoutPercent] = useState(20);
-  const [pilotPlan, setPilotPlan] = useState<PilotPlan | null>(null);
   const [fileName, setFileName] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeNav, setActiveNav] = useState("Overview");
@@ -40,7 +37,7 @@ export default function Home() {
   useEffect(() => { void loadSample(); }, []);
 
   async function loadSample() {
-    setLoading(true); setError(""); setWarning(""); setAsOfInput(""); setSearch(""); setSelectedKey(""); setDraft(""); setDraftMode(""); setDraftReview(null); setPilotPlan(null);
+    setLoading(true); setError(""); setWarning(""); setAsOfInput(""); setSearch(""); setSelectedKey(""); setDraft(""); setDraftMode(""); setDraftReview(null);
     try {
       const response = await fetch(SAMPLE_PATH, { cache: "no-store" });
       if (!response.ok) throw new Error("Public transaction sample is unavailable.");
@@ -56,7 +53,7 @@ export default function Home() {
     if (!file) return;
     if (file.size > MAX_UPLOAD_BYTES) { setError("This file is over 30 MB. Export a smaller date range from your sales system and try again."); return; }
     if (!file.name.toLowerCase().endsWith(".csv")) { setError("Upload a CSV export. Excel workbooks need to be saved as CSV first."); return; }
-    setLoading(true); setError(""); setWarning(""); setDraft(""); setDraftMode(""); setDraftReview(null); setPilotPlan(null); setAsOfInput(""); setSelectedKey("");
+    setLoading(true); setError(""); setWarning(""); setDraft(""); setDraftMode(""); setDraftReview(null); setAsOfInput(""); setSelectedKey(""); setSearch("");
     try {
       const parsed = parseSalesCsv(await file.text());
       setRows(parsed.rows); setSource("Your CSV · processed in this browser"); setFileName(file.name); setIsSample(false); setWarning(parsed.warnings.join(" "));
@@ -75,6 +72,26 @@ export default function Home() {
     return analysis.overdue.find((buyer) => buyer.customerKey === selectedKey) || analysis.overdue[0] || null;
   }, [analysis, selectedKey]);
 
+  const itemWatchlist: WatchlistItem[] = useMemo(() => {
+    if (!analysis) return [];
+    const groups = new Map<string, ShopperInsight[]>();
+    for (const shopper of analysis.overdue) groups.set(shopper.productId, [...(groups.get(shopper.productId) || []), shopper]);
+    return [...groups.entries()].map(([productId, shoppers]) => {
+      const median = (values: number[]) => {
+        const sorted = values.slice().sort((a, b) => a - b);
+        const middle = Math.floor(sorted.length / 2);
+        return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+      };
+      return {
+        productId,
+        productName: shoppers[0].productName,
+        shopperCount: shoppers.length,
+        typicalDays: Math.round(median(shoppers.map((shopper) => shopper.usualDays))),
+        medianLateDays: Math.round(median(shoppers.map((shopper) => shopper.lateDays))),
+      };
+    }).sort((a, b) => b.shopperCount - a.shopperCount || b.medianLateDays - a.medianLateDays || a.productName.localeCompare(b.productName)).slice(0, 5);
+  }, [analysis]);
+
   async function makeDraft(buyer: ShopperInsight) {
     setDrafting(true); setDraft(""); setDraftMode(""); setDraftReview(null); setDraftError("");
     try {
@@ -88,55 +105,6 @@ export default function Home() {
     finally { setDrafting(false); }
   }
 
-  function createPilotPlan(buyers: ShopperInsight[], asOf: string) {
-    const groups = new Map<string, ShopperInsight[]>();
-    for (const buyer of buyers) groups.set(buyer.productId, [...(groups.get(buyer.productId) || []), buyer]);
-    const targetHoldoutCount = buyers.length > 1
-      ? Math.min(buyers.length - 1, Math.max(1, Math.round(buyers.length * holdoutPercent / 100)))
-      : 0;
-    const shuffledGroups = [...groups.values()].map((group) => {
-      const shuffled = group.slice();
-      for (let i = shuffled.length - 1; i > 0; i -= 1) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      const exactCount = buyers.length ? shuffled.length * targetHoldoutCount / buyers.length : 0;
-      return { shoppers: shuffled, holdoutCount: Math.floor(exactCount), remainder: exactCount % 1, tieBreaker: Math.random() };
-    });
-    let remaining = targetHoldoutCount - shuffledGroups.reduce((total, group) => total + group.holdoutCount, 0);
-    const remainderOrder = [...shuffledGroups].sort((a, b) => b.remainder - a.remainder || a.tieBreaker - b.tieBreaker);
-    for (const group of remainderOrder) {
-      if (remaining <= 0) break;
-      if (group.holdoutCount < group.shoppers.length) {
-        group.holdoutCount += 1;
-        remaining -= 1;
-      }
-    }
-    const assignments: PilotAssignment[] = shuffledGroups.flatMap(({ shoppers, holdoutCount }) =>
-      shoppers.map((buyer, index) => ({ buyer, group: index < holdoutCount ? "holdout" : "contact" })),
-    );
-    setPilotPlan({ asOf, assignments });
-  }
-
-  function downloadPilotPlan(plan: PilotPlan) {
-    const cell = (value: string | number) => {
-      let safe = String(value);
-      if (/^\s*[=+@-]/.test(safe)) safe = "'" + safe;
-      return '"' + safe.replace(/"/g, '""') + '"';
-    };
-    const lines = [
-      ["customer_reference", "test_group", "repeat_item", "snapshot_date", "last_order_date", "usual_interval_days", "days_since_last_order", "days_beyond_threshold"],
-      ...plan.assignments.map(({ buyer, group }) => [buyer.customerKey, group, buyer.productName, plan.asOf, buyer.lastOrder, buyer.usualDays, buyer.daysSinceLast, buyer.lateDays]),
-    ].map((line) => line.map(cell).join(","));
-    const blob = new Blob([String.fromCharCode(0xfeff) + lines.join(String.fromCharCode(13, 10))], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `rhythm-pilot-plan-${plan.asOf}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
   const dataReady = Boolean(analysis && rows.length);
   const selectedPosition = selected ? analysis?.overdue.findIndex((buyer) => buyer.customerKey === selected.customerKey) ?? -1 : -1;
 
@@ -147,7 +115,7 @@ export default function Home() {
         <div className="shop-switch"><div className="shop-avatar">M</div><div><b>Merchant workspace</b><small>Local analysis</small></div><ChevronDown size={15}/></div>
         <div className="nav-label">WORKSPACE</div>
         <nav className="side-nav">
-          {[{label:"Overview",icon:Gauge},{label:"Customers",icon:Users},{label:"Pilot planner",icon:CalendarDays}].map(({label,icon:Icon})=><button key={label} className={"nav-item " + (activeNav===label?"active":"")} onClick={() => {setActiveNav(label); setMobileOpen(false); if(label==="Customers") document.getElementById("customer-list")?.scrollIntoView({behavior:"smooth"}); else if(label==="Pilot planner") document.getElementById("pilot-plan")?.scrollIntoView({behavior:"smooth"}); else window.scrollTo({top:0,behavior:"smooth"});}}><Icon size={17}/>{label}{label==="Customers"&&analysis?<span className="nav-count">{analysis.overdue.length}</span>:null}</button>)}
+          {[{label:"Overview",icon:Gauge},{label:"Customers",icon:Users},{label:"Item watchlist",icon:ShoppingBag}].map(({label,icon:Icon})=><button key={label} className={"nav-item " + (activeNav===label?"active":"")} onClick={() => {setActiveNav(label); setMobileOpen(false); if(label==="Customers") document.getElementById("customer-list")?.scrollIntoView({behavior:"smooth"}); else if(label==="Item watchlist") document.getElementById("item-watchlist")?.scrollIntoView({behavior:"smooth"}); else window.scrollTo({top:0,behavior:"smooth"});}}><Icon size={17}/>{label}{label==="Customers"&&analysis?<span className="nav-count">{analysis.overdue.length}</span>:null}</button>)}
         </nav>
         <div className="sidebar-bottom">
           <div className="privacy-card"><div><LockKeyhole size={16}/><b>Private by design</b></div><p>Sales files are analyzed in this browser, and shopper identifiers stay local.</p></div>
@@ -164,7 +132,7 @@ export default function Home() {
           {error && <div className="alert error-alert"><Info size={17}/><span>{error}</span><button onClick={() => setError("")} aria-label="Dismiss"><X size={16}/></button></div>}
           {warning && <div className="alert warning-alert"><Info size={17}/><span>{warning}</span><button onClick={() => setWarning("")} aria-label="Dismiss"><X size={16}/></button></div>}
           {loading ? <div className="loading-panel"><LoaderCircle className="spin" size={24}/><span>Reading sales records locally…</span></div> : dataReady && analysis ? <>
-            <section className="snapshot-row"><div><span className="section-kicker">REPORTING DATE</span><p>Historical snapshot used for these customer metrics.</p></div><label className="date-select"><CalendarDays size={16}/><input type="date" value={asOfInput || analysis.asOf} min={analysis.minDate} max={analysis.maxDate} onChange={(e) => {setPilotPlan(null);setAsOfInput(e.target.value);}}/><ChevronDown size={14}/></label></section>
+            <section className="snapshot-row"><div><span className="section-kicker">REPORTING DATE</span><p>Historical snapshot used for these customer metrics.</p></div><label className="date-select"><CalendarDays size={16}/><input type="date" value={asOfInput || analysis.asOf} min={analysis.minDate} max={analysis.maxDate} onChange={(e) => setAsOfInput(e.target.value)}/><ChevronDown size={14}/></label></section>
             <section className="metric-grid">
               <Metric icon={<Users size={17}/>} label="Repeat shoppers" value={analysis.eligibleShoppers.toLocaleString()} note="4+ distinct purchase days before snapshot" tone="violet"/>
               <Metric icon={<Clock3 size={17}/>} label="Out of their rhythm" value={analysis.overdue.length.toLocaleString()} note="Beyond personal repeat threshold" tone="orange"/>
@@ -195,7 +163,15 @@ export default function Home() {
                 </> : <div className="no-risk"><Check size={24}/><b>All repeat shoppers are within their usual rhythm</b><p>Choose another snapshot date or load a dataset with more repeat purchases.</p></div>}
               </aside>
             </section>
-            <section className="pilot-row" id="pilot-plan"><div className="pilot-icon"><MessageSquareText size={18}/></div><div className="pilot-copy"><span className="section-kicker">MAKE THE NEXT STEP MEASURABLE</span><h2>Measure follow-ups with a fair retention test.</h2><p>Randomly assign the selected share of shoppers to a holdout group, balancing by repeat item where possible. Compare 30-day repeat purchases to estimate incremental impact.</p></div><div className="pilot-actions"><label>Holdout <select value={holdoutPercent} onChange={(event) => setHoldoutPercent(Number(event.target.value))}><option value={10}>10%</option><option value={20}>20%</option><option value={30}>30%</option></select></label><button className="button secondary" onClick={() => createPilotPlan(analysis.overdue, analysis.asOf)} disabled={analysis.overdue.length < 2}>Create randomized plan</button></div>{pilotPlan?.asOf === analysis.asOf && <div className="pilot-plan-result"><div><b>{pilotPlan.assignments.filter((item) => item.group === "contact").length}</b><span>follow-up group</span></div><div><b>{pilotPlan.assignments.filter((item) => item.group === "holdout").length}</b><span>holdout group</span></div><button className="button primary" onClick={() => downloadPilotPlan(pilotPlan)}><Download size={14}/> Download plan CSV</button><p>The CSV includes customer references from your file. Store it securely. The research sample uses pseudonymous IDs from historical transactions. Assignments use whole shoppers, so the realized share depends on cohort size.</p></div>}</section>
+            <section className="watchlist-card" id="item-watchlist">
+              <div className="watchlist-heading"><div><span className="section-kicker">PRODUCT SIGNALS</span><h2>Items with the most overdue repeat shoppers</h2><p>Use the purchase history to decide which products deserve a closer look.</p></div><span className="subtle-count">{itemWatchlist.length} items</span></div>
+              {itemWatchlist.length ? <div className="watchlist-list">{itemWatchlist.map((item) => <div className="watchlist-item" key={item.productId}>
+                <div className="watchlist-product"><span className="watchlist-icon"><ShoppingBag size={16}/></span><span><b title={item.productName}>{item.productName}</b><small>Typical repeat interval · {item.typicalDays} days</small></span></div>
+                <div className="watchlist-stat"><b>{item.shopperCount}</b><small>overdue shoppers</small></div>
+                <div className="watchlist-stat"><b>{item.medianLateDays} days</b><small>median days past threshold</small></div>
+                <button className="button secondary watchlist-action" onClick={() => {setSearch(item.productName);setActiveNav("Customers");document.getElementById("customer-list")?.scrollIntoView({behavior:"smooth"});}}>Review shoppers <ArrowUpRight size={14}/></button>
+              </div>)}</div> : <div className="watchlist-empty">No repeat items need review for this reporting date.</div>}
+            </section>
             <section className="method-row" id="method"><div className="method-main"><span className="section-kicker">TRANSPARENT RHYTHM RULE</span><h2>Every shopper has a personal purchase clock.</h2><p>We use each shopper’s own history to estimate when their usual routine has shifted. Four purchase days are required before a shopper can be assessed.</p><div className="formula"><span>Flag for review when</span><b>days since last order &gt; max(14, 1.6 × personal median gap)</b></div><small>This signal highlights a change in purchase timing. Merchants review the context before acting.</small></div><div className="method-side"><div className="method-stat"><b>{analysis.totalOrders.toLocaleString()}</b><span>orders included</span></div><div className="method-stat"><b>{analysis.totalRows.toLocaleString()}</b><span>line items analyzed</span></div><div className="method-stat"><b>{shortDate(analysis.minDate)} – {shortDate(analysis.maxDate)}</b><span>data coverage</span></div></div></section>
             <section className="privacy-footer" id="privacy"><div><ShieldCheck size={17}/><b>Privacy stays part of the product</b></div><p>CSV analysis stays in browser memory until the page closes. Customer identifiers are masked in the interface. AI draft requests include item names and purchase timing; configured model endpoints receive that evidence for drafting. Customer IDs and contact details remain in the browser. Rhythm labels rule-based drafts whenever AI is unavailable.</p><span>Public sample: UCI Machine Learning Repository · Online Retail · CC BY 4.0 · Chen (2015)</span></section>
           </> : <div className="empty-state"><div className="empty-graphic"><FileUp size={28}/></div><h2>Bring in transaction history.</h2><p>Upload a sales CSV with order, customer, product, quantity, date and unit-price columns. Or restore the real public research dataset.</p><button className="button primary" onClick={() => void loadSample()}><ArrowDownToLine size={16}/> Load UCI research dataset</button></div>}
