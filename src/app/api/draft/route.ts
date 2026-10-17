@@ -6,6 +6,17 @@ function templateDraft(productName: string, usualDays: number, daysSinceLast: nu
   return `It may be a good time to reorder ${productName}. You usually reorder about every ${usualDays} days, and it has been ${daysSinceLast} days since your last order. If you do not need it right now, feel free to ignore this reminder.`;
 }
 
+function reviewDraft(draft: string, allowedNumbers: number[]) {
+  const reasons: string[] = [];
+  const words = draft.trim().split(/\s+/).filter(Boolean);
+  if (words.length > 40) reasons.push("over the 40-word limit");
+  const numbers = draft.match(/\b\d+(?:[,.]\d+)?%?\b/g) || [];
+  if (numbers.some((value) => !allowedNumbers.includes(Number(value.replace(/,/g, "").replace("%", ""))))) reasons.push("contains a number not present in the purchase evidence");
+  if (/\b(?:discount|offer|sale|deal|free shipping|limited time|last chance|urgent|hurry|expires?|guarantee|save)\b|[£$€]/i.test(draft)) reasons.push("contains an unsupported promotion, price, or urgency claim");
+  if (/\b(?:dear|hi|hello)\b/i.test(draft)) reasons.push("contains a greeting even though no customer name was provided");
+  return { passed: reasons.length === 0, reasons };
+}
+
 export async function POST(request: Request) {
   const base = process.env.OPENAI_BASE_URL?.replace(/\/+$/, "");
   const apiKey = process.env.OPENAI_API_KEY;
@@ -18,7 +29,7 @@ export async function POST(request: Request) {
   const daysLate = Number(input.daysLate);
   if (![usualDays, daysSinceLast, daysLate].every(Number.isFinite)) return NextResponse.json({ error: "Missing purchase-timing evidence." }, { status: 400 });
   if (!base || !apiKey || !model || model.includes("the-model-id-from")) {
-    return NextResponse.json({ draft: templateDraft(productName, usualDays, daysSinceLast), model: "Rhythm template", mode: "template" });
+    return NextResponse.json({ draft: templateDraft(productName, usualDays, daysSinceLast), model: "Rhythm template", mode: "template", review: { status: "rules", reasons: [] } });
   }
   try {
     const response = await fetch(base + "/chat/completions", {
@@ -42,7 +53,9 @@ export async function POST(request: Request) {
     const content = payload?.choices?.[0]?.message?.content;
     const draft = typeof content === "string" ? content.trim() : Array.isArray(content) ? content.map((part: { text?: string }) => part?.text || "").join("").trim() : "";
     if (!draft) return NextResponse.json({ error: "The model did not return a draft. Try again or choose a different model." }, { status: 502 });
-    return NextResponse.json({ draft, model, mode: "ai" });
+    const review = reviewDraft(draft, [usualDays, daysSinceLast, daysLate]);
+    if (!review.passed) return NextResponse.json({ draft: templateDraft(productName, usualDays, daysSinceLast), model: "Rhythm template", mode: "verified_template", review: { status: "replaced", reasons: review.reasons } });
+    return NextResponse.json({ draft, model, mode: "ai", review: { status: "passed", reasons: [] } });
   } catch {
     return NextResponse.json({ error: "Could not reach the local model. Check that LM Studio's server is listening at the address in .env.local." }, { status: 502 });
   }

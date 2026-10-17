@@ -27,7 +27,8 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [selectedKey, setSelectedKey] = useState("");
   const [draft, setDraft] = useState("");
-  const [draftMode, setDraftMode] = useState<"template" | "ai" | "">("");
+  const [draftMode, setDraftMode] = useState<"template" | "ai" | "verified_template" | "">("");
+  const [draftReview, setDraftReview] = useState<{ status: "passed" | "replaced" | "rules"; reasons: string[] } | null>(null);
   const [draftError, setDraftError] = useState("");
   const [drafting, setDrafting] = useState(false);
   const [holdoutPercent, setHoldoutPercent] = useState(20);
@@ -39,7 +40,7 @@ export default function Home() {
   useEffect(() => { void loadSample(); }, []);
 
   async function loadSample() {
-    setLoading(true); setError(""); setWarning(""); setAsOfInput(""); setSearch(""); setSelectedKey(""); setDraft(""); setDraftMode(""); setPilotPlan(null);
+    setLoading(true); setError(""); setWarning(""); setAsOfInput(""); setSearch(""); setSelectedKey(""); setDraft(""); setDraftMode(""); setDraftReview(null); setPilotPlan(null);
     try {
       const response = await fetch(SAMPLE_PATH, { cache: "no-store" });
       if (!response.ok) throw new Error("Public transaction sample could not be loaded.");
@@ -55,7 +56,7 @@ export default function Home() {
     if (!file) return;
     if (file.size > MAX_UPLOAD_BYTES) { setError("This file is over 30 MB. Export a smaller date range from your sales system and try again."); return; }
     if (!file.name.toLowerCase().endsWith(".csv")) { setError("Upload a CSV export. Excel workbooks need to be saved as CSV first."); return; }
-    setLoading(true); setError(""); setWarning(""); setDraft(""); setDraftMode(""); setPilotPlan(null); setAsOfInput(""); setSelectedKey("");
+    setLoading(true); setError(""); setWarning(""); setDraft(""); setDraftMode(""); setDraftReview(null); setPilotPlan(null); setAsOfInput(""); setSelectedKey("");
     try {
       const parsed = parseSalesCsv(await file.text());
       setRows(parsed.rows); setSource("Your CSV · processed in this browser"); setFileName(file.name); setIsSample(false); setWarning(parsed.warnings.join(" "));
@@ -75,13 +76,14 @@ export default function Home() {
   }, [analysis, selectedKey]);
 
   async function makeDraft(buyer: ShopperInsight) {
-    setDrafting(true); setDraft(""); setDraftMode(""); setDraftError("");
+    setDrafting(true); setDraft(""); setDraftMode(""); setDraftReview(null); setDraftError("");
     try {
       const response = await fetch("/api/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productName: buyer.productName, usualDays: buyer.usualDays, daysSinceLast: buyer.daysSinceLast, daysLate: buyer.lateDays }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not draft a message.");
       setDraft(data.draft);
-      setDraftMode(data.mode === "ai" ? "ai" : "template");
+      setDraftMode(data.mode === "ai" || data.mode === "verified_template" ? data.mode : "template");
+      setDraftReview(data.review || null);
     } catch (e) { setDraftError(e instanceof Error ? e.message : "Could not reach LM Studio."); }
     finally { setDrafting(false); }
   }
@@ -160,7 +162,7 @@ export default function Home() {
                 <div className="card-heading"><div><span className="section-kicker">WORTH A LOOK</span><h2>Shoppers past their usual rhythm</h2><p>Select a shopper to review the purchase history behind the signal.</p></div><span className="subtle-count">{analysis.overdue.length} found</span></div>
                 <div className="search-box"><Search size={16}/><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search aliases or repeat items"/></div>
                 <div className="table-scroll"><table><thead><tr><th>SHOPPER</th><th>USUAL GAP</th><th>LAST ORDER</th><th>OVERDUE BY</th><th></th></tr></thead><tbody>
-                  {filtered.map((buyer, i) => <tr key={buyer.customerKey} className={selected?.customerKey===buyer.customerKey?"chosen":""} onClick={() => {setSelectedKey(buyer.customerKey);setDraft("");setDraftError("");}}><td><span className="shopper-cell"><span className={"shopper-avatar avatar-"+(i%5)}>{alias(buyer.customerKey).slice(-2)}</span><span><b>{alias(buyer.customerKey)}</b><small>{buyer.ordersBefore} purchase days</small></span></span></td><td><span className="cadence-value">{buyer.usualDays} days</span></td><td>{shortDate(buyer.lastOrder)}</td><td><span className="late-pill">+{buyer.lateDays} days</span></td><td><ChevronRight size={16} className="row-chevron"/></td></tr>)}
+                  {filtered.map((buyer, i) => <tr key={buyer.customerKey} className={selected?.customerKey===buyer.customerKey?"chosen":""} onClick={() => {setSelectedKey(buyer.customerKey);setDraft("");setDraftMode("");setDraftReview(null);setDraftError("");}}><td><span className="shopper-cell"><span className={"shopper-avatar avatar-"+(i%5)}>{alias(buyer.customerKey).slice(-2)}</span><span><b>{alias(buyer.customerKey)}</b><small>{buyer.ordersBefore} purchase days</small></span></span></td><td><span className="cadence-value">{buyer.usualDays} days</span></td><td>{shortDate(buyer.lastOrder)}</td><td><span className="late-pill">+{buyer.lateDays} days</span></td><td><ChevronRight size={16} className="row-chevron"/></td></tr>)}
                   {!filtered.length && <tr><td colSpan={5} className="empty-row">{analysis.overdue.length?"No shoppers match that search.":"No shoppers are beyond their personal threshold on this date."}</td></tr>}
                 </tbody></table></div>
                 <div className="table-foot"><span>Showing {filtered.length} of {analysis.overdue.length} flagged shoppers</span><span><LockKeyhole size={13}/> IDs are masked in this view</span></div>
@@ -171,8 +173,8 @@ export default function Home() {
                   <div className="profile-heading"><div className="profile-avatar">{alias(selected.customerKey).slice(-2)}</div><div><h2>{alias(selected.customerKey)}</h2><span className="profile-status"><span/> Review suggested</span></div></div>
                   <div className="reason-box"><div className="reason-head"><span className="reason-mark"><Activity size={15}/></span><b>Why Rhythm flagged them</b></div><p>They usually order every <strong>{selected.usualDays} days</strong>. It has been <strong>{selected.daysSinceLast} days</strong> since the last order—<strong>{selected.lateDays} days beyond</strong> their personal threshold.</p><div className="rhythm-scale"><div className="scale-labels"><span>Usual: {selected.usualDays}d</span><span>Now: {selected.daysSinceLast}d</span></div><div className="scale-track"><div className="scale-fill" style={{width:Math.min(100,Math.max(14,(selected.daysSinceLast/Math.max(selected.thresholdDays*2,1))*100))+"%"}}/><span className="threshold-tick" style={{left:Math.min(92,(selected.thresholdDays/Math.max(selected.thresholdDays*2,1))*100)+"%"}}/></div><div className="scale-caption">Personal threshold: {selected.thresholdDays} days</div></div></div>
                   <div className="repeat-item"><div className="repeat-item-icon"><ShoppingBag size={17}/></div><div><span className="mini-label">MOST REPEATED ITEM</span><b>{selected.productName}</b><small>Appeared in {selected.repeatCount} separate order days</small></div></div>
-                  <div className="draft-section"><div className="draft-title"><div><Sparkles size={16}/><b>Thoughtful next step</b></div><span>{draftMode === "ai" ? "AI-GENERATED" : draftMode === "template" ? "RULE-BASED · NO AI" : "EVIDENCE-BASED"}</span></div><p>Draft a low-pressure reorder reminder from the purchase evidence. No discount is assumed.</p>
-                    {draft ? <div className="draft-result"><div className="draft-result-head"><Check size={14}/> Draft ready <button onClick={() => {setDraft("");setDraftMode("");}} aria-label="Clear draft"><X size={14}/></button></div><p>{draft}</p><small>Review and personalize before sending. Rhythm never sends messages.</small></div> : <button className="button ai-button" disabled={drafting} onClick={() => void makeDraft(selected)}>{drafting?<LoaderCircle size={16} className="spin"/>:<Sparkles size={16}/>} {drafting?"Preparing your draft…":"Draft a follow-up"}<ArrowUpRight size={15}/></button>}
+                  <div className="draft-section"><div className="draft-title"><div><Sparkles size={16}/><b>Thoughtful next step</b></div><span>{draftMode === "ai" ? "AI · CHECKS PASSED" : draftMode === "verified_template" ? "AI REJECTED · SAFE FALLBACK" : draftMode === "template" ? "RULE-BASED · NO AI" : "EVIDENCE-BASED"}</span></div><p>Draft a low-pressure reorder reminder from the purchase evidence. No discount is assumed.</p>
+                    {draft ? <div className="draft-result"><div className="draft-result-head"><Check size={14}/> Draft ready <button onClick={() => {setDraft("");setDraftMode("");setDraftReview(null);}} aria-label="Clear draft"><X size={14}/></button></div><p>{draft}</p>{draftReview?.status === "passed" ? <div className="draft-review-pass">Independent checks passed: concise, no new numeric claims, offers, urgency or greeting.</div> : draftReview?.status === "replaced" ? <div className="draft-review-fail">AI draft replaced: {draftReview.reasons.join("; ")}. This template uses only the supplied evidence.</div> : null}<small>Review and personalize before sending. Rhythm never sends messages.</small></div> : <button className="button ai-button" disabled={drafting} onClick={() => void makeDraft(selected)}>{drafting?<LoaderCircle size={16} className="spin"/>:<Sparkles size={16}/>} {drafting?"Preparing your draft…":"Draft a follow-up"}<ArrowUpRight size={15}/></button>}
                     {draftError && <div className="ai-error">{draftError}</div>}
                     <div className="local-note"><LockKeyhole size={13}/> The draft uses only the item name and timing evidence—no customer ID or contact details. If an AI model is unavailable, Rhythm creates a clearly labeled rule-based draft.</div>
                   </div>

@@ -17,7 +17,7 @@ This is Rhythm. It reads transaction CSVs locally in the browser and looks at ea
 
 Here is the attention list from the real UCI Online Retail research dataset. It covers UK transactions from 2010 and 2011, so this is a product demonstration, not live merchant data. I can select a shopper and inspect the cadence, last order, repeated item, and exact reason for the flag.
 
-Now I can ask Gemma, served locally through LM Studio with Vulkan acceleration on the Radeon RX 9070 XT, to draft a low-pressure reminder. The model only writes the message. Rhythm’s statistical rule identifies the shopper, and a person reviews the draft. Nothing is sent automatically.
+Now I can ask Gemma, served locally through LM Studio with Vulkan acceleration on the Radeon RX 9070 XT, to draft a low-pressure reminder. Gemma only writes the message; a separate deterministic gate checks length, unsupported numbers, offers, urgency and greetings. If a draft fails, Rhythm replaces it with a factual template. Rhythm’s statistical rule identifies the shopper, and a person reviews every draft. Nothing is sent automatically.
 
 The historical return rate is not proof that a message works. For a real campaign, we would hold out a randomized group and compare 30-day repeat purchases and gross margin. That is how Rhythm turns a signal into a measurable, responsible retention test.”
 

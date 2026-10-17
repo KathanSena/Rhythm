@@ -10,7 +10,7 @@
 - Estimates a shopper's normal purchase interval from the median gap between distinct purchase days.
 - Flags a shopper for human review after max(14 days, 1.6 × personal median gap), requiring at least four purchase days.
 - Shows the repeated item and the supporting timeline, with masked identifiers.
-- Optionally drafts a low-pressure reorder reminder using a model served locally by LM Studio. The statistical rule makes the flag; the language model only drafts text. Rhythm never sends messages.
+- Optionally drafts a low-pressure reorder reminder using Gemma served locally by LM Studio. A separate deterministic gate checks length, unsupported numbers, promotion/urgency language, and greetings; a failed draft is replaced with an evidence-only template. Rhythm never sends messages.
 - Builds a randomized follow-up/holdout plan, balanced within repeated-item groups, and exports a merchant handoff CSV for human review. No messages are sent.
 - Provides a measurable pilot design: compare 30-day repeat purchase between randomized groups after the campaign. Rhythm reports no predicted campaign lift.
 
