@@ -1,34 +1,41 @@
-# Rhythm demo video — 90-second guide
+# Rhythm demo video — about 2 minutes
 
 ## Before recording
 
-- Start LM Studio, load google/gemma-4-e4b, and start its OpenAI-compatible local server on port 1234.
-- The current LM Studio configuration has been verified: Gemma uses the Vulkan backend, all model layers are offloaded, and the RX 9070 XT is GPU 0. During recording, show Task Manager’s RX 9070 XT performance graph while generating the draft.
-- Start Rhythm with pnpm dev from the project folder and open http://localhost:3001.
-- Keep the reporting date at 9 November 2011 and use the bundled UCI dataset.
-- Choose the top shopper and show the reason, repeated item, and formula. Generate one draft; do not send it.
-- Say clearly that the data is historical and the return rate is not campaign impact.
+- Start LM Studio, load Gemma 4 E4B, and start its OpenAI-compatible local server on port 1234.
+- Start Rhythm with `pnpm dev` and open `http://localhost:3001`.
+- Restore the bundled UCI sample and leave the reporting date at 9 November 2011.
+- Keep Task Manager's RX 9070 XT performance graph visible while drafting if you want to show GPU activity. Describe GPU inference only if LM Studio confirms offload during that run.
+- Use the lines below as conversational prompts. Pause while you click through the app.
 
-## Narration
+## Talk track and screen actions
 
-“Small retailers can see orders, but it is hard to know when a regular customer’s routine has changed. A one-size-fits-all churn window can miss the difference between a weekly buyer and someone who returns every few months.
+**Overview — show the main metrics**
 
-This is Rhythm. It reads transaction CSVs locally in the browser and looks at each shopper’s own purchase history. A shopper needs at least four purchase days. Rhythm flags them for review when time since their last order passes the larger of 14 days or 1.6 times their personal median gap.
+“Small retailers can have years of purchase history and still struggle to spot when a regular customer’s routine changes. Rhythm helps a merchant find those changes and review the evidence before choosing a next step.
 
-Here is the attention list from the real UCI Online Retail research dataset. It covers UK transactions from 2010 and 2011, so this is a product demonstration, not live merchant data. I can select a shopper and inspect the cadence, last order, repeated item, and exact reason for the flag.
+This sample contains 2,000 pseudonymized customers and about 298,000 original UK transaction lines from the UCI Online Retail dataset. It covers 2010 and 2011, so it demonstrates the workflow with historical research data.”
 
-Now I can ask Gemma, served locally through LM Studio with Vulkan acceleration on the Radeon RX 9070 XT, to draft a low-pressure reminder. Gemma only writes the message; a separate deterministic gate checks length, unsupported numbers, offers, urgency and greetings. If a draft fails, Rhythm replaces it with a factual template. Rhythm’s statistical rule identifies the shopper, and a person reviews every draft. Nothing is sent automatically.
+**Show the overview metrics**
 
-The historical return rate is not proof that a message works. For a real campaign, we would hold out a randomized group and compare 30-day repeat purchases and gross margin. That is how Rhythm turns a signal into a measurable, responsible retention test.”
+“For this reporting date, 1,073 shoppers meet Rhythm’s repeat-purchase rule, and 170 are past their personal threshold. The typical cadence is 40 days. The 44% return figure describes historical 30-day behavior in this dataset; it does not show a campaign effect.”
 
-## Optional stronger product-action shot
+**Scroll to the item watchlist**
 
-After the draft, scroll to the pilot planner. Choose a holdout share, create the randomized assignment plan, and show the follow-up and holdout counts. You can download the CSV, but say that the bundled sample contains pseudonymous historical references and is not a contact list. Do not present the random groups as campaign results: the planner prepares a real merchant test; it does not predict or claim lift.
+“The item watchlist groups those flagged shoppers by the product they repeat most. It ranks items by shopper count and shows the typical repeat interval and median lateness. This first item appears in 11 overdue shoppers, with a 25-day typical interval and a median 16 days past threshold.”
 
-## Closing line
+**Click “Review shoppers,” then select a shopper**
 
-“Rhythm helps a retailer notice when a customer’s own pattern changes, then act with evidence instead of a blanket discount.”
+“I can open the matching shoppers, choose one, and check the last order, usual gap, and reason for the flag. The rule is transparent: at least four purchase days, then a threshold of the larger of 14 days or 1.6 times that shopper’s median gap.”
 
-## AMD proof to capture
+**Click “Draft a follow-up” and show the result**
 
-Open Task Manager’s Performance view and select the Radeon RX 9070 XT. Keep its graph visible while clicking “Draft a follow-up” so the recording shows GPU activity during model inference. LM Studio reports a Vulkan backend with all model layers offloaded to GPU 0; Windows showed compute-engine activity for that inference process. Do not claim that the model makes the retention decision. Rhythm’s cadence rule does that.
+“Gemma through LM Studio helps write the reminder. The purchase-history rule creates the signal; the model only drafts wording. A merchant reviews the draft, and Rhythm doesn’t send messages.”
+
+**Close on the dashboard or method section**
+
+“Rhythm turns transaction history into a focused list of shoppers and products to review. Its results here are historical signals; a retailer would measure any real campaign separately.”
+
+## GPU evidence
+
+Show LM Studio's runtime details or Task Manager while generating the draft. State that the RX 9070 XT ran inference only when the runtime confirms GPU offload for that request. The language model writes the message; Rhythm's cadence rule determines the review signal.

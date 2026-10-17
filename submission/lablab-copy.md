@@ -6,17 +6,19 @@ Rhythm
 
 ## Short description
 
-Rhythm helps small retailers spot repeat shoppers who have drifted from their own purchase cadence, understand the evidence, and draft a considerate follow-up.
+Rhythm helps small retailers spot repeat shoppers who have drifted from their own purchase cadence, review which products appear most often in the signals, and draft a considerate follow-up.
 
 ## Long description
 
-Small retailers often have transaction history but no simple way to tell when a repeat customer’s routine has changed. Generic churn windows can overlook the fact that one shopper returns weekly while another returns every few months.
+Small retailers often have transaction history but no simple way to tell when a repeat customer’s routine has changed. A generic inactivity window can overlook that one shopper returns weekly while another returns every few months.
 
-Rhythm analyzes transaction CSVs in the browser and compares each repeat shopper’s latest purchase date with their own historical cadence. It requires at least four distinct purchase days and flags a shopper for human review when days since last order exceed max(14 days, 1.6 × that shopper’s median gap between purchase days). The attention list shows the personal cadence, last order, repeated item, and days beyond the threshold. A merchant can create a randomized follow-up/holdout plan, balanced within repeated-item groups, and export the assignment list for a human-reviewed campaign. After the campaign, the merchant should compare 30-day repeat purchases across the groups; Rhythm does not claim or predict campaign lift.
+Rhythm analyzes transaction CSVs in the browser and compares each repeat shopper’s latest purchase date with their own historical cadence. It requires at least four distinct purchase days and flags a shopper for human review when days since last order exceed max(14 days, 1.6 × that shopper’s median gap between purchase days). The shopper queue shows the personal cadence, last order, repeated item, and days beyond the threshold.
 
-For a possible next step, Rhythm can ask Gemma through a local LM Studio endpoint to draft a low-pressure reorder reminder. The model only writes the draft; it does not decide who is flagged or send messages. A separate deterministic gate checks the output for excessive length, new numeric claims, promotions, urgency, and greetings. If any check fails, Rhythm replaces the AI text with an evidence-only template. The merchant reviews every suggestion.
+The item watchlist groups flagged shoppers by their most repeated product and ranks the top five items by shopper count. For each item, it shows the typical repeat interval and median days past the personal threshold. A merchant can open the matching shoppers and inspect their purchase history before deciding whether to follow up.
 
-The included research sample is an attributed, anonymized extract of the UCI Online Retail dataset, covering UK transactions from 2010–2011. It is a historical research sample, not current merchant data. Rhythm makes no campaign-lift claim. A merchant pilot should randomize a holdout group and compare 30-day repeat purchases and gross margin before claiming impact.
+For a possible next step, Rhythm can ask Gemma through an LM Studio endpoint to draft a low-pressure reorder reminder. The model writes the draft; the cadence rule determines who appears for review. A deterministic gate checks length, unsupported numbers, promotions, urgency, and greetings. The merchant reviews every suggestion, and Rhythm does not send messages.
+
+The bundled research sample contains 297,626 original UK transaction lines for 2,000 pseudonymized customers from the UCI Online Retail dataset. The data covers 2010–2011 and demonstrates the product workflow; it does not represent current merchant activity. Rhythm reports historical return behavior without attributing it to a campaign.
 
 ## Selected challenge
 
@@ -32,7 +34,7 @@ https://github.com/KathanSena/Rhythm
 
 ## Technology tags
 
-AMD Radeon RX 9070 XT (verified Vulkan GPU inference), Gemma 4 E4B, LM Studio, Next.js, React, TypeScript, customer retention, browser-side CSV analytics.
+AMD Radeon RX 9070 XT, Gemma 4 E4B, LM Studio, Next.js, React, TypeScript, customer retention, browser-side CSV analytics.
 
 ## Intended user
 
@@ -40,8 +42,8 @@ An independent retailer or retention marketer reviewing repeat purchase behavior
 
 ## Business value and measurement
 
-The useful action is an evidence-backed review, an optional message draft, and an exported randomized campaign plan. The product does not show intervention results. Measure a real campaign using the randomized holdout and 30-day repeat purchase rate; gross margin requires the merchant’s cost data and is not inferred from this sales CSV.
+The useful action is an evidence-backed review of shoppers and repeat items, followed by an optional message draft. The prototype does not show intervention results. A retailer can measure a real campaign separately using repeat purchase rates and gross margin from its own campaign and cost data.
 
 ## Data and caveat
 
-Online Retail, UCI Machine Learning Repository, donated by Daqing Chen (2015), DOI 10.24432/C5BW33, CC BY 4.0. Dataset: https://archive.ics.uci.edu/dataset/352/online%2Bretail. The data is historical; the app’s 30-day return figure is descriptive behavior, not the effect of a campaign.
+Online Retail, UCI Machine Learning Repository, donated by Daqing Chen (2015), DOI 10.24432/C5BW33, CC BY 4.0. Dataset: https://archive.ics.uci.edu/dataset/352/online%2Bretail. The data is historical; the app’s 30-day return figure describes past behavior and is not the effect of a campaign.
