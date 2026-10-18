@@ -10,6 +10,7 @@ export type SaleRow = {
 
 export type ShopperInsight = {
   customerKey: string;
+  purchaseDays: string[];
   ordersBefore: number;
   lastOrder: string;
   daysSinceLast: number;
@@ -168,7 +169,7 @@ export function analyzeSales(rows: SaleRow[], requestedAsOf?: string): Analysis 
     if (returned !== null) { validationCount += 1; if (returned) returnCount += 1; }
     lastBasketValues.push(lastOrder.value);
     valueSum += lastOrder.value;
-    insights.push({ customerKey, ordersBefore: distinctDays.length, lastOrder: dayText(lastDay), daysSinceLast, usualDays, lateDays, thresholdDays, productName: repeatItem?.name || "Past purchase", productId: repeatItem?.id || "", repeatCount: repeatItem?.dates.size || 0, lastBasketValue: lastOrder.value, returnedWithin30: returned });
+    insights.push({ customerKey, purchaseDays: distinctDays.map(dayText), ordersBefore: distinctDays.length, lastOrder: dayText(lastDay), daysSinceLast, usualDays, lateDays, thresholdDays, productName: repeatItem?.name || "Past purchase", productId: repeatItem?.id || "", repeatCount: repeatItem?.dates.size || 0, lastBasketValue: lastOrder.value, returnedWithin30: returned });
   }
   insights.sort((a, b) => b.lateDays - a.lateDays);
   const orderValueById = new Map<string, number>();

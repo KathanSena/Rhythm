@@ -154,6 +154,7 @@ export default function Home() {
                 {selected ? <>
                   <div className="profile-heading"><div className="profile-avatar">{alias(selected.customerKey).slice(-2)}</div><div><h2>{alias(selected.customerKey)}</h2><span className="profile-status"><span/> Review suggested</span></div></div>
                   <div className="reason-box"><div className="reason-head"><span className="reason-mark"><Activity size={15}/></span><b>Why Rhythm flagged them</b></div><p>They usually order every <strong>{selected.usualDays} days</strong>. It has been <strong>{selected.daysSinceLast} days</strong> since the last order—<strong>{selected.lateDays} days beyond</strong> their personal threshold.</p><div className="rhythm-scale"><div className="scale-labels"><span>Usual: {selected.usualDays}d</span><span>Now: {selected.daysSinceLast}d</span></div><div className="scale-track"><div className="scale-fill" style={{width:Math.min(100,Math.max(14,(selected.daysSinceLast/Math.max(selected.thresholdDays*2,1))*100))+"%"}}/><span className="threshold-tick" style={{left:Math.min(92,(selected.thresholdDays/Math.max(selected.thresholdDays*2,1))*100)+"%"}}/></div><div className="scale-caption">Personal threshold: {selected.thresholdDays} days</div></div></div>
+                  <PurchaseTimeline shopper={selected} asOf={analysis.asOf}/>
                   <div className="repeat-item"><div className="repeat-item-icon"><ShoppingBag size={17}/></div><div><span className="mini-label">MOST REPEATED ITEM</span><b>{selected.productName}</b><small>Appeared in {selected.repeatCount} separate order days</small></div></div>
                   <div className="draft-section"><div className="draft-title"><div><Sparkles size={16}/><b>Thoughtful next step</b></div><span>{draftMode === "ai" ? "AI · CHECKS PASSED" : draftMode === "verified_template" ? "AI REVIEW · TEMPLATE USED" : draftMode === "template" ? "RULE-BASED TEMPLATE" : "EVIDENCE-BASED"}</span></div><p>Draft a low-pressure reorder reminder using purchase evidence, with promotional details left to the merchant.</p>
                     {draft ? <div className="draft-result"><div className="draft-result-head"><Check size={14}/> Draft ready <button onClick={() => {setDraft("");setDraftMode("");setDraftReview(null);}} aria-label="Clear draft"><X size={14}/></button></div><p>{draft}</p>{draftReview?.status === "passed" ? <div className="draft-review-pass">Independent checks passed: concise and grounded in purchase evidence.</div> : draftReview?.status === "replaced" ? <div className="draft-review-fail">AI draft replaced: {draftReview.reasons.join("; ")}. This template uses only the supplied evidence.</div> : null}<small>Every draft stays under merchant review before sending.</small></div> : <button className="button ai-button" disabled={drafting} onClick={() => void makeDraft(selected)}>{drafting?<LoaderCircle size={16} className="spin"/>:<Sparkles size={16}/>} {drafting?"Preparing your draft…":"Draft a follow-up"}<ArrowUpRight size={15}/></button>}
@@ -184,4 +185,43 @@ export default function Home() {
 
 function Metric({icon,label,value,note,tone}:{icon:React.ReactNode;label:string;value:string;note:string;tone:string}) {
   return <div className="metric-card"><div className={"metric-icon "+tone}>{icon}</div><div className="metric-meta"><span>{label}</span><b>{value}</b><small>{note}</small></div><span className={"metric-orbit "+tone}/></div>;
+}
+
+function PurchaseTimeline({shopper,asOf}:{shopper:ShopperInsight;asOf:string}) {
+  const day = (date: string) => Math.floor(Date.parse(date + "T00:00:00Z") / 86_400_000);
+  const date = (value: string) => new Intl.DateTimeFormat("en-GB",{day:"numeric",month:"short",year:"numeric",timeZone:"UTC"}).format(new Date(value + "T00:00:00Z"));
+  const firstDay = day(shopper.purchaseDays[0]);
+  const lastDay = day(shopper.lastOrder);
+  const asOfDay = day(asOf);
+  const thresholdDay = lastDay + shopper.thresholdDays;
+  const span = Math.max(1, asOfDay - firstDay);
+  const left = 8;
+  const width = 304;
+  const x = (value: number) => left + ((value - firstDay) / span) * width;
+  const lastX = x(lastDay);
+  const thresholdX = x(thresholdDay);
+  const endX = x(asOfDay);
+
+  return <section className="purchase-timeline" aria-label="Shopper purchase timeline">
+    <div className="timeline-heading"><b>PURCHASE TIMELINE</b><span>{shopper.purchaseDays.length} purchase days</span></div>
+    <svg className="timeline-chart" viewBox="0 0 320 76" role="img" aria-labelledby="purchase-timeline-title purchase-timeline-desc" preserveAspectRatio="none">
+      <title id="purchase-timeline-title">Purchase history and personal repeat threshold</title>
+      <desc id="purchase-timeline-desc">{shopper.purchaseDays.length} purchase days. Last purchase {date(shopper.lastOrder)}. Personal threshold {shopper.thresholdDays} days after that, on {date(new Date(thresholdDay * 86_400_000).toISOString().slice(0,10))}. Reporting date {date(asOf)}.</desc>
+      <rect x={lastX} y="39" width={Math.max(0,thresholdX-lastX)} height="12" rx="4" fill="#f8ead8"/>
+      <rect x={thresholdX} y="39" width={Math.max(0,endX-thresholdX)} height="12" rx="4" fill="#f2d8c3"/>
+      <line x1={left} y1="45" x2={endX} y2="45" stroke="#dfe5e1" strokeWidth="2"/>
+      {shopper.purchaseDays.map((purchaseDay,index) => {
+        const purchaseX = x(day(purchaseDay));
+        const purchaseY = 22 + (index % 3) * 5;
+        const isLast = index === shopper.purchaseDays.length - 1;
+        return <circle key={purchaseDay} cx={purchaseX} cy={purchaseY} r={isLast?3.5:2.4} fill={isLast?"#39765e":"#8ca99a"}>
+          <title>{isLast?"Last purchase":"Purchase"}: {date(purchaseDay)}</title>
+        </circle>;
+      })}
+      <line x1={thresholdX} y1="13" x2={thresholdX} y2="57" stroke="#b56b3d" strokeWidth="1.5" strokeDasharray="3 3"/>
+      <circle cx={endX} cy="45" r="3.2" fill="#b56b3d"/>
+    </svg>
+    <div className="timeline-legend"><span><i className="timeline-dot"/>Purchase day</span><span><i className="timeline-threshold"/>Personal threshold</span><span><i className="timeline-late"/>Past threshold</span></div>
+    <div className="timeline-dates"><span>First: {date(shopper.purchaseDays[0])}</span><span>Threshold: {date(new Date(thresholdDay * 86_400_000).toISOString().slice(0,10))}</span><span>Now: {date(asOf)}</span></div>
+  </section>;
 }
