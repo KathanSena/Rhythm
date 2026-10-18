@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     if (!response.ok) return NextResponse.json({ error: "LM Studio returned an error. Make sure the model is loaded and the local server is running." }, { status: 502 });
     const content = payload?.choices?.[0]?.message?.content;
     const draft = typeof content === "string" ? content.trim() : Array.isArray(content) ? content.map((part: { text?: string }) => part?.text || "").join("").trim() : "";
-    if (!draft) return NextResponse.json({ error: "The model returned an empty draft. Try again or choose a different model." }, { status: 502 });
+    if (!draft) return NextResponse.json({ draft: templateDraft(productName, usualDays, daysSinceLast), model: "Rhythm template", mode: "verified_template", review: { status: "replaced", reasons: ["the model returned no visible draft text"] } });
     const review = reviewDraft(draft, [usualDays, daysSinceLast, daysLate]);
     if (!review.passed) return NextResponse.json({ draft: templateDraft(productName, usualDays, daysSinceLast), model: "Rhythm template", mode: "verified_template", review: { status: "replaced", reasons: review.reasons } });
     return NextResponse.json({ draft, model, mode: "ai", review: { status: "passed", reasons: [] } });
