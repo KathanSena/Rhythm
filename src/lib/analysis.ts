@@ -236,6 +236,24 @@ function inferDateOrder(values: string[]): {
 
 function normalizeDate(raw: string, order: DateOrder): string | null {
   if (!raw) return null;
+  const isoDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/);
+  if (isoDate) {
+    const year = Number(isoDate[1]);
+    const month = Number(isoDate[2]);
+    const day = Number(isoDate[3]);
+    const timestamp = Date.UTC(year, month - 1, day);
+    const parsed = new Date(timestamp);
+    if (
+      month < 1 ||
+      month > 12 ||
+      day < 1 ||
+      parsed.getUTCFullYear() !== year ||
+      parsed.getUTCMonth() !== month - 1 ||
+      parsed.getUTCDate() !== day
+    )
+      return null;
+    return parsed.toISOString();
+  }
   const match = raw.match(
     /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?$/,
   );
