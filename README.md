@@ -22,7 +22,7 @@ Requires Node.js 20.9+ and pnpm.
     pnpm install
     pnpm dev
 
-Open http://localhost:3000.
+Open http://localhost:3001.
 
 ## Deploy the demo
 
