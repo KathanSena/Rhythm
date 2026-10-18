@@ -3,9 +3,16 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Rhythm — Retention, in time",
-  description: "A privacy-first retention copilot that spots when repeat buyers fall out of their own rhythm.",
+  description:
+    "See which repeat shoppers have passed their usual reorder interval, review the purchase history, and prepare a follow-up.",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
 }

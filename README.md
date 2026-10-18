@@ -28,13 +28,13 @@ Open http://localhost:3001.
 
 The app can be deployed to Vercel from the public GitHub repository. The included transaction analysis runs in the visitor's browser and needs no database.
 
-The optional Gemma drafting route is configured by server environment variables. The local .env.local endpoint (127.0.0.1:1234) is only for a local demo; it will not reach your computer from a hosted deployment. To enable AI drafts on a hosted deployment, set OPENAI_BASE_URL, OPENAI_API_KEY, and OPENAI_MODEL in the hosting provider to a reachable, secured OpenAI-compatible model endpoint. Never put endpoint credentials in client-side code or commit them. If no hosted model endpoint is set, the site creates a clearly labeled rule-based template instead of claiming an AI draft.
+Gemma drafting is optional and uses server environment variables. The local `.env.local` endpoint (`127.0.0.1:1234`) works only for a local demo; a hosted deployment cannot reach your computer through that address. To enable AI drafts on a hosted deployment, set `OPENAI_BASE_URL`, `OPENAI_API_KEY`, and `OPENAI_MODEL` in the hosting provider to a reachable, secured OpenAI-compatible model endpoint. Keep credentials out of client-side code and Git. If the variables are unset, Rhythm shows a labeled rule-based template. If a configured endpoint cannot be reached, Rhythm shows an error so you can check the connection.
 
 ### Optional local Gemma draft
 
-In LM Studio, load your downloaded Gemma model, start the local server (OpenAI-compatible API, normally port 1234), and copy .env.example to .env.local. Set OPENAI_MODEL to the exact model identifier shown by LM Studio. The sample API key value is a local placeholder; LM Studio commonly does not require a real key. Restart pnpm dev after editing .env.local.
+In LM Studio, load your Gemma model and start its local server (OpenAI-compatible API, normally port 1234). Copy `.env.example` to `.env.local`, then set `OPENAI_MODEL` to the exact model identifier shown by LM Studio. The sample API key is a local placeholder; LM Studio commonly does not require a real key. Restart `pnpm dev` after editing `.env.local`.
 
-Only previously purchased item labels and purchase timing are sent to the configured model endpoint. Customer identifiers and contact details stay in the browser. The bundled research sample uses pseudonymous IDs and is historical, not a contact list.
+Only a previously purchased item label and purchase timing are sent to the configured model endpoint. Customer identifiers and contact details stay in the browser. The bundled research sample uses pseudonymous IDs and is historical, not a contact list.
 
 ## Merchant CSV
 
