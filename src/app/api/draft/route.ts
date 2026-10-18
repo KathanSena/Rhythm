@@ -7,20 +7,33 @@ function templateDraft(
   usualDays: number,
   daysSinceLast: number,
 ) {
-  return `It may be a good time to reorder ${productName}. You usually reorder about every ${usualDays} days, and it has been ${daysSinceLast} days since your last order. Feel free to revisit this reminder whenever it suits you.`;
+  const item =
+    productName.trim().split(/\s+/).filter(Boolean).slice(0, 12).join(" ") ||
+    "a previously purchased item";
+  return `Consider a reorder of ${item}. Their usual interval is ${usualDays} days; the last order was ${daysSinceLast} days ago. Review the history before following up.`;
 }
 
-function reviewDraft(draft: string, allowedNumbers: number[]) {
+function reviewDraft(
+  draft: string,
+  allowedNumbers: number[],
+  productName: string,
+) {
   const reasons: string[] = [];
   const words = draft.trim().split(/\s+/).filter(Boolean);
   if (words.length > 40) reasons.push("over the 40-word limit");
   const numbers = draft.match(/\b\d+(?:[,.]\d+)?%?\b/g) || [];
+  const productNumbers = productName.match(/\b\d+(?:[,.]\d+)?%?\b/g) || [];
+  const permittedNumbers = new Set([
+    ...allowedNumbers,
+    ...productNumbers.map((value) =>
+      Number(value.replace(/,/g, "").replace("%", "")),
+    ),
+  ]);
   if (
-    numbers.some(
-      (value) =>
-        !allowedNumbers.includes(
-          Number(value.replace(/,/g, "").replace("%", "")),
-        ),
+    numbers.some((value) =>
+      !permittedNumbers.has(
+        Number(value.replace(/,/g, "").replace("%", "")),
+      ),
     )
   )
     reasons.push("includes a number outside the purchase evidence");
@@ -136,7 +149,11 @@ export async function POST(request: Request) {
           reasons: ["the model returned no visible draft text"],
         },
       });
-    const review = reviewDraft(draft, [usualDays, daysSinceLast, daysLate]);
+    const review = reviewDraft(
+      draft,
+      [usualDays, daysSinceLast, daysLate],
+      productName,
+    );
     if (!review.passed)
       return NextResponse.json({
         draft: templateDraft(productName, usualDays, daysSinceLast),

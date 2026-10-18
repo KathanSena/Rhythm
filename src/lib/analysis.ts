@@ -41,6 +41,17 @@ export type Analysis = {
 
 export type ParseResult = { rows: SaleRow[]; warnings: string[] };
 
+const NON_MERCHANDISE_CODES = new Set(["M", "POST", "DOT", "C2"]);
+const NON_MERCHANDISE_NAMES = new Set([
+  "MANUAL",
+  "POST",
+  "POSTAGE",
+  "DOT",
+  "DOTCOM POSTAGE",
+  "CARRIAGE",
+  "BANK CHARGES",
+]);
+
 export function parseSalesCsv(text: string): ParseResult {
   const matrix: string[][] = [];
   let row: string[] = [];
@@ -133,7 +144,12 @@ export function parseSalesCsv(text: string): ParseResult {
   const warnings: string[] = [];
   const out: SaleRow[] = [];
   let rejected = 0;
-  for (const values of matrix.slice(1)) {
+  const dataRows = matrix.slice(1);
+  const dateOrder = inferDateOrder(
+    dataRows.map((values) => (values[ix.date] ?? "").trim()),
+  );
+  if (dateOrder.warning) warnings.push(dateOrder.warning);
+  for (const values of dataRows) {
     const get = (n: number) => (n < 0 ? "" : (values[n] ?? "").trim());
     const orderId = get(ix.order);
     const customerKey = get(ix.customer);
@@ -142,7 +158,7 @@ export function parseSalesCsv(text: string): ParseResult {
     const quantity = Number(get(ix.quantity));
     const unitPrice = Number(get(ix.price).replace(/[£$,]/g, ""));
     const rawDate = get(ix.date);
-    const orderedAt = normalizeDate(rawDate);
+    const orderedAt = normalizeDate(rawDate, dateOrder.order);
     if (
       !orderId ||
       !customerKey ||
@@ -150,7 +166,6 @@ export function parseSalesCsv(text: string): ParseResult {
       !Number.isFinite(quantity) ||
       !Number.isFinite(unitPrice) ||
       !orderedAt ||
-      orderId.toLowerCase().startsWith("c") ||
       quantity <= 0 ||
       unitPrice <= 0
     ) {
@@ -183,8 +198,84 @@ export function parseSalesCsv(text: string): ParseResult {
   return { rows: out, warnings };
 }
 
-function normalizeDate(raw: string): string | null {
+type DateOrder = "day-first" | "month-first";
+
+function inferDateOrder(values: string[]): {
+  order: DateOrder;
+  warning: string | null;
+} {
+  let dayFirstEvidence = 0;
+  let monthFirstEvidence = 0;
+  let ambiguousCount = 0;
+  for (const value of values) {
+    const match = value.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:\s|$)/);
+    if (!match) continue;
+    const first = Number(match[1]);
+    const second = Number(match[2]);
+    if (first > 12 && second <= 12) dayFirstEvidence += 1;
+    else if (second > 12 && first <= 12) monthFirstEvidence += 1;
+    else if (first <= 12 && second <= 12) ambiguousCount += 1;
+  }
+  if (dayFirstEvidence && monthFirstEvidence)
+    return {
+      order: "day-first",
+      warning:
+        "Mixed day/month date formats detected. Ambiguous dates are interpreted as day/month/year; check the source values.",
+    };
+  if (monthFirstEvidence)
+    return { order: "month-first", warning: null };
+  if (dayFirstEvidence)
+    return { order: "day-first", warning: null };
+  return {
+    order: "day-first",
+    warning: ambiguousCount
+      ? "Ambiguous slash dates are interpreted as day/month/year. Check that this matches your export."
+      : null,
+  };
+}
+
+function normalizeDate(raw: string, order: DateOrder): string | null {
   if (!raw) return null;
+  const match = raw.match(
+    /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?$/,
+  );
+  if (match) {
+    const first = Number(match[1]);
+    const second = Number(match[2]);
+    const year = Number(match[3]);
+    const valueOrder =
+      first > 12 ? "day-first" : second > 12 ? "month-first" : order;
+    const day = valueOrder === "day-first" ? first : second;
+    const month = valueOrder === "day-first" ? second : first;
+    const hour = Number(match[4] || 0);
+    const minute = Number(match[5] || 0);
+    const secondValue = Number(match[6] || 0);
+    const millisecond = Number((match[7] || "").padEnd(3, "0").slice(0, 3));
+    const timestamp = Date.UTC(
+      year,
+      month - 1,
+      day,
+      hour,
+      minute,
+      secondValue,
+      millisecond,
+    );
+    const parsed = new Date(timestamp);
+    if (
+      month < 1 ||
+      month > 12 ||
+      day < 1 ||
+      day > 31 ||
+      parsed.getUTCFullYear() !== year ||
+      parsed.getUTCMonth() !== month - 1 ||
+      parsed.getUTCDate() !== day ||
+      hour > 23 ||
+      minute > 59 ||
+      secondValue > 59
+    )
+      return null;
+    return parsed.toISOString();
+  }
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed.toISOString();
@@ -278,6 +369,7 @@ export function analyzeSales(
     >();
     for (const order of history)
       for (const [id, p] of order.products) {
+        if (isNonMerchandiseItem(id, p.name)) continue;
         const entry = itemCounts.get(id) || {
           id,
           name: p.name,
@@ -309,7 +401,7 @@ export function analyzeSales(
       usualDays,
       lateDays,
       thresholdDays,
-      productName: repeatItem?.name || "Past purchase",
+      productName: repeatItem?.name || "",
       productId: repeatItem?.id || "",
       repeatCount: repeatItem?.dates.size || 0,
       lastBasketValue: lastOrder.value,
@@ -338,6 +430,15 @@ export function analyzeSales(
     medianCadence: Math.round(median(eligibleCadences)),
     averageOrderValue,
   };
+}
+
+function isNonMerchandiseItem(productId: string, productName: string): boolean {
+  const code = productId.trim().toUpperCase();
+  const name = productName.trim().toUpperCase().replace(/\s+/g, " ");
+  return (
+    NON_MERCHANDISE_CODES.has(code) ||
+    NON_MERCHANDISE_NAMES.has(name)
+  );
 }
 
 export function money(value: number, currency = "GBP") {

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   ArrowDownToLine,
@@ -80,6 +80,7 @@ export default function Home() {
   } | null>(null);
   const [draftError, setDraftError] = useState("");
   const [drafting, setDrafting] = useState(false);
+  const draftRequest = useRef(0);
   const [fileName, setFileName] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeNav, setActiveNav] = useState("Overview");
@@ -88,6 +89,15 @@ export default function Home() {
     void loadSample();
   }, []);
 
+  function clearDraft() {
+    draftRequest.current += 1;
+    setDraft("");
+    setDraftMode("");
+    setDraftReview(null);
+    setDraftError("");
+    setDrafting(false);
+  }
+
   async function loadSample() {
     setLoading(true);
     setError("");
@@ -95,9 +105,7 @@ export default function Home() {
     setAsOfInput("");
     setSearch("");
     setSelectedKey("");
-    setDraft("");
-    setDraftMode("");
-    setDraftReview(null);
+    clearDraft();
     try {
       const response = await fetch(SAMPLE_PATH, { cache: "no-store" });
       if (!response.ok)
@@ -139,9 +147,7 @@ export default function Home() {
     setLoading(true);
     setError("");
     setWarning("");
-    setDraft("");
-    setDraftMode("");
-    setDraftReview(null);
+    clearDraft();
     setAsOfInput("");
     setSelectedKey("");
     setSearch("");
@@ -178,22 +184,24 @@ export default function Home() {
       .slice(0, 80);
   }, [analysis, search]);
   const selected: ShopperInsight | null = useMemo(() => {
-    if (!analysis) return null;
+    if (!filtered.length) return null;
     return (
-      analysis.overdue.find((buyer) => buyer.customerKey === selectedKey) ||
-      analysis.overdue[0] ||
+      filtered.find((buyer) => buyer.customerKey === selectedKey) ||
+      filtered[0] ||
       null
     );
-  }, [analysis, selectedKey]);
+  }, [filtered, selectedKey]);
 
   const itemWatchlist: WatchlistItem[] = useMemo(() => {
     if (!analysis) return [];
     const groups = new Map<string, ShopperInsight[]>();
-    for (const shopper of analysis.overdue)
+    for (const shopper of analysis.overdue) {
+      if (!shopper.productId) continue;
       groups.set(shopper.productId, [
         ...(groups.get(shopper.productId) || []),
         shopper,
       ]);
+    }
     return [...groups.entries()]
       .map(([productId, shoppers]) => {
         const median = (values: number[]) => {
@@ -225,6 +233,8 @@ export default function Home() {
   }, [analysis]);
 
   async function makeDraft(buyer: ShopperInsight) {
+    const requestId = draftRequest.current + 1;
+    draftRequest.current = requestId;
     setDrafting(true);
     setDraft("");
     setDraftMode("");
@@ -244,6 +254,7 @@ export default function Home() {
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error || "Please try drafting again.");
+      if (draftRequest.current !== requestId) return;
       setDraft(data.draft);
       setDraftMode(
         data.mode === "ai" || data.mode === "verified_template"
@@ -252,13 +263,14 @@ export default function Home() {
       );
       setDraftReview(data.review || null);
     } catch (e) {
+      if (draftRequest.current !== requestId) return;
       setDraftError(
         e instanceof Error
           ? e.message
           : "Check that LM Studio is running and the model is loaded.",
       );
     } finally {
-      setDrafting(false);
+      if (draftRequest.current === requestId) setDrafting(false);
     }
   }
 
@@ -478,7 +490,11 @@ export default function Home() {
                     value={asOfInput || analysis.asOf}
                     min={analysis.minDate}
                     max={analysis.maxDate}
-                    onChange={(e) => setAsOfInput(e.target.value)}
+                    onChange={(e) => {
+                      setAsOfInput(e.target.value);
+                      setSelectedKey("");
+                      clearDraft();
+                    }}
                   />
                   <ChevronDown size={14} />
                 </label>
@@ -544,7 +560,10 @@ export default function Home() {
                     <Search size={16} />
                     <input
                       value={search}
-                      onChange={(e) => setSearch(e.target.value)}
+                      onChange={(e) => {
+                        setSearch(e.target.value);
+                        clearDraft();
+                      }}
                       placeholder="Search aliases or repeat items"
                     />
                   </div>
@@ -569,11 +588,8 @@ export default function Home() {
                                 : ""
                             }
                             onClick={() => {
+                              clearDraft();
                               setSelectedKey(buyer.customerKey);
-                              setDraft("");
-                              setDraftMode("");
-                              setDraftReview(null);
-                              setDraftError("");
                             }}
                           >
                             <td>
@@ -715,11 +731,20 @@ export default function Home() {
                           <ShoppingBag size={17} />
                         </div>
                         <div>
-                          <span className="mini-label">MOST REPEATED ITEM</span>
-                          <b>{selected.productName}</b>
+                          <span className="mini-label">
+                            {selected.productId
+                              ? "MOST REPEATED ITEM"
+                              : "PRODUCT SIGNAL"}
+                          </span>
+                          <b>
+                            {selected.productId
+                              ? selected.productName
+                              : "No repeat merchandise item found"}
+                          </b>
                           <small>
-                            Appeared in {selected.repeatCount} separate order
-                            days
+                            {selected.productId
+                              ? `Appeared in ${selected.repeatCount} separate order days`
+                              : "Service and accounting codes are excluded."}
                           </small>
                         </div>
                       </div>
@@ -749,9 +774,7 @@ export default function Home() {
                               <Check size={14} /> Draft ready{" "}
                               <button
                                 onClick={() => {
-                                  setDraft("");
-                                  setDraftMode("");
-                                  setDraftReview(null);
+                                  clearDraft();
                                 }}
                                 aria-label="Clear draft"
                               >
@@ -775,7 +798,7 @@ export default function Home() {
                               Review the text before sending it to a customer.
                             </small>
                           </div>
-                        ) : (
+                        ) : selected.productId ? (
                           <button
                             className="button ai-button"
                             disabled={drafting}
@@ -791,6 +814,10 @@ export default function Home() {
                               : "Draft a follow-up"}
                             <ArrowUpRight size={15} />
                           </button>
+                        ) : (
+                          <div className="ai-error">
+                            A product-specific draft needs a repeated merchandise item.
+                          </div>
                         )}
                         {draftError && (
                           <div className="ai-error">{draftError}</div>
@@ -854,6 +881,8 @@ export default function Home() {
                         <button
                           className="button secondary watchlist-action"
                           onClick={() => {
+                            clearDraft();
+                            setSelectedKey("");
                             setSearch(item.productName);
                             setActiveNav("Customers");
                             document
